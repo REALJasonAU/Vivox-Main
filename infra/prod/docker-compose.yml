@@ -1,0 +1,110 @@
+# Vivox — Production stack
+#
+# Pangolin (SSL / reverse proxy) runs on a SEPARATE server and routes
+# https://your-domain → http://THIS_VPS_IP:3000
+#
+# Usage:
+#   cp infra/prod/.env.example infra/prod/.env   # fill in secrets
+#   docker compose -f infra/prod/docker-compose.yml --env-file infra/prod/.env up -d --build
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: vivox-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vivox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: vivox
+    volumes:
+      - vivox-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vivox -d vivox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  redis:
+    image: redis:7
+    container_name: vivox-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - vivox-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    container_name: vivox-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      HTTP_ADDR: ":8080"
+      GRPC_ADDR: ":9090"
+      DATABASE_URL: postgres://vivox:${POSTGRES_PASSWORD}@postgres:5432/vivox
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      GRPC_TLS_DISABLED: "${GRPC_TLS_DISABLED:-false}"
+      GRPC_CERT_DIR: /app/certs
+      MIGRATIONS_DIR: /app/infra/migrations
+      TEMPLATES_DIR: /app/templates
+      NODE_PUBLIC_HOST: ${NODE_PUBLIC_HOST:-}
+      CADDY_ADMIN_URL: ${CADDY_ADMIN_URL:-}
+    volumes:
+      - vivox-certs:/app/certs
+    # Port 8080 NOT exposed to host — Next.js proxies /api/control/* internally.
+    # Port 9090 exposed so remote agents can connect via gRPC.
+    ports:
+      - "9090:9090"
+    networks:
+      - internal
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Must be passed at build time — Next.js bakes rewrite destinations
+        # into the standalone bundle during `npm run build`.
+        API_URL: http://api:8080
+    container_name: vivox-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      DATABASE_URL: postgres://vivox:${POSTGRES_PASSWORD}@postgres:5432/vivox
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: https://${DOMAIN}
+      NEXT_PUBLIC_APP_URL: https://${DOMAIN}
+      API_INTERNAL_URL: http://api:8080
+      API_URL: http://api:8080
+      NEXT_PUBLIC_API_URL: /api/control
+    # Port 3000 exposed so Pangolin (on its own server) can route traffic here.
+    ports:
+      - "3000:3000"
+    networks:
+      - internal
+
+volumes:
+  vivox-pgdata:
+  vivox-redisdata:
+  vivox-certs:
+
+networks:
+  internal:
+    driver: bridge

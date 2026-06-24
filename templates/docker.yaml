@@ -1,0 +1,25 @@
+# Generic Docker application template (advanced deploy tab).
+# The operator supplies the image, ports, and environment at deploy time.
+id: docker
+name: Generic Docker App
+description: Deploy any Docker image with custom ports and environment variables.
+type: docker
+image: nginx:latest
+
+ports: []
+env: {}
+
+configurable:
+  - key: image
+    label: Container Image
+    default: "nginx:latest"
+    env: ""
+  - key: port
+    label: Container Port
+    default: "8080:80/tcp"
+    env: ""
+
+resources:
+  memory_mb: 512
+  cpu_shares: 512
+  disk_gb: 5

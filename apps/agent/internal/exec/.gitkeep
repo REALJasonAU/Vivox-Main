@@ -1,0 +1,1 @@
+# internal/exec — log/stream catchers piping container stdout/stderr into LogChunk frames.

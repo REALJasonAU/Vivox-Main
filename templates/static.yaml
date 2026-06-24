@@ -1,0 +1,24 @@
+# Static site template: nginx serving uploaded files (plan section 9).
+# The uploaded asset bundle URL is passed via the service config AssetURL and
+# mounted by the agent into the nginx web root.
+id: static
+name: Static Site
+description: Host a static website (HTML/CSS/JS) on nginx.
+type: static
+image: nginx:alpine
+
+ports:
+  - "8080:80/tcp"
+
+env: {}
+
+configurable:
+  - key: port
+    label: Public Port
+    default: "8080:80/tcp"
+    env: ""
+
+resources:
+  memory_mb: 256
+  cpu_shares: 256
+  disk_gb: 2

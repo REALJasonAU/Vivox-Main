@@ -1,0 +1,3 @@
+# Generated Go stubs (agent.pb.go, agent_grpc.pb.go) are emitted here by
+# gen.ps1 / gen.sh / `buf generate`. This file keeps the directory tracked
+# before generation has been run.

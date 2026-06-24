@@ -1,0 +1,18 @@
+# Node
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+
+# Go build caches
+**/vendor
+
+# Dev artifacts
+**/.env.local
+**/.env.*.local
+*.log
+
+# Git
+.git
+.gitignore

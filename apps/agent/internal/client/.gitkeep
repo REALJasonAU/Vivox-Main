@@ -1,0 +1,1 @@
+# internal/client — mTLS dialer, gRPC ConnectStream runner, heartbeat loop, reconnect/backoff.

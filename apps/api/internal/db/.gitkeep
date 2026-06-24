@@ -1,0 +1,1 @@
+# internal/db — sqlc-generated code (models.go, querier, query.sql.go) is emitted here by `sqlc generate`.

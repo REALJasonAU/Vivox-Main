@@ -1,0 +1,49 @@
+# ---- Go ----
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+# Test/coverage
+*.test
+*.out
+coverage.*
+# Go workspace sum (keep go.work, ignore the resolved sum)
+go.work.sum
+
+# ---- Node / Next.js ----
+node_modules/
+.pnp
+.pnp.*
+.next/
+out/
+build/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+certs/
+
+# ---- Editor / OS ----
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# ---- Generated proto (regenerate via packages/proto/gen.* ) ----
+# Generated stubs are committed by default; uncomment to treat as build artifacts:
+# packages/proto/gen/*.go

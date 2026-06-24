@@ -1,0 +1,1 @@
+# internal/service — service CRUD + start/stop/restart with state-machine guards; node registration.

@@ -1,0 +1,35 @@
+# Minecraft (Java) game server template.
+# Backed by the itzg/minecraft-server image (plan section 9).
+id: minecraft
+name: Minecraft Server
+description: Java Edition Minecraft server (itzg/minecraft-server) with configurable RAM.
+type: game
+image: itzg/minecraft-server:latest
+
+# Game servers use explicit port bindings (see plan section 5).
+ports:
+  - "25565:25565/tcp"
+
+# Static environment applied to every Minecraft deploy.
+env:
+  EULA: "TRUE"
+
+# User-tunable fields surfaced in the deploy wizard.
+configurable:
+  - key: ram
+    label: Server RAM
+    default: "2G"
+    env: MEMORY
+  - key: version
+    label: Minecraft Version
+    default: "LATEST"
+    env: VERSION
+  - key: difficulty
+    label: Difficulty
+    default: "normal"
+    env: DIFFICULTY
+
+resources:
+  memory_mb: 2048
+  cpu_shares: 1024
+  disk_gb: 10

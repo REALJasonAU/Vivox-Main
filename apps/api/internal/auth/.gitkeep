@@ -1,0 +1,1 @@
+# internal/auth — Better Auth session/JWT verification middleware; extracts owner_id and role.

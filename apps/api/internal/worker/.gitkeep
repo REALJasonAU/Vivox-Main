@@ -1,0 +1,1 @@
+# internal/worker — asynq deploy worker: template resolution -> StartServiceTask -> status transitions.
