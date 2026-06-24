@@ -17,6 +17,10 @@ VIVOX_ENV_FILE="infra/prod/.env"
 AGENT_DIR="/opt/vivox-agent"
 AGENT_ENV="/etc/vivox-agent/agent.env"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=node-agent-lib.sh
+source "${SCRIPT_DIR}/node-agent-lib.sh"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -100,26 +104,6 @@ build_agent() {
   chmod +x /usr/local/bin/vivox-agent
 }
 
-write_agent_env() {
-  local grpc_host="${PANEL_URL#https://}"
-  grpc_host="${grpc_host#http://}"
-  grpc_host="${grpc_host%%/*}"
-  local nexus_control_addr="${grpc_host}:9090"
-
-  mkdir -p /etc/vivox-agent
-  cat >"$AGENT_ENV" <<EOF
-NEXUS_CONTROL_ADDR=${nexus_control_addr}
-NEXUS_AGENT_ID=${NODE_ID}
-NEXUS_AGENT_TOKEN=${AGENT_TOKEN}
-NEXUS_AGENT_INSECURE=true
-NEXUS_AGENT_HEALTH_ADDR=:8082
-VIVOX_PANEL_URL=${PANEL_URL}
-VIVOX_REPO_URL=${VIVOX_REPO_URL}
-VIVOX_BRANCH=${VIVOX_BRANCH}
-EOF
-  chmod 600 "$AGENT_ENV"
-}
-
 install_agent_systemd() {
   cat >/etc/systemd/system/vivox-agent.service <<'EOF'
 [Unit]
@@ -171,14 +155,17 @@ handle_existing_install() {
   warn "Vivox Agent is already installed."
   echo ""
   echo "Options:"
-  echo "  1) Update to latest version"
+  echo "  1) Update / apply new credentials"
   echo "  2) Uninstall"
   echo "  3) Exit"
   echo ""
   read -r -p "Choice [1-3]: " choice
   case "${choice:-3}" in
     1)
-      bash "${AGENT_DIR}/infra/scripts/update-node.sh"
+      bash "${AGENT_DIR}/infra/scripts/update-node.sh" \
+        --panel-url "$PANEL_URL" \
+        --token "$AGENT_TOKEN" \
+        --node-id "$NODE_ID"
       exit 0
       ;;
     2)
@@ -211,7 +198,7 @@ main() {
   git clone --branch "$VIVOX_BRANCH" "$VIVOX_REPO_URL" "$AGENT_DIR"
 
   build_agent
-  write_agent_env
+  write_agent_env "$PANEL_URL" "$NODE_ID" "$AGENT_TOKEN"
   install_agent_systemd
   install_agent_autoupdater
 
@@ -235,7 +222,7 @@ main() {
   echo "Useful commands:"
   echo "  Status    : systemctl status vivox-agent"
   echo "  Logs      : journalctl -u vivox-agent -f"
-  echo "  Update now: bash ${AGENT_DIR}/infra/scripts/update-node.sh"
+  echo "  Update now: bash ${AGENT_DIR}/infra/scripts/update-node.sh --panel-url URL --token TOKEN --node-id UUID"
   echo "  Uninstall : bash ${AGENT_DIR}/infra/scripts/uninstall-node.sh"
   echo ""
 }

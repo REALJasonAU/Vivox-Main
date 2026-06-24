@@ -90,7 +90,7 @@ export function useLiveNodeStatuses(nodes: Node[]) {
   return live;
 }
 
-export function useLiveNodeStatus(node: Node | undefined) {
+export function useLiveNodeStatus(node: Node | null | undefined) {
   const nodes = node ? [node] : [];
   const live = useLiveNodeStatuses(nodes);
   if (!node) return undefined;
