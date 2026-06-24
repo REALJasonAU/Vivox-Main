@@ -23,6 +23,7 @@ const (
 	consoleStreamPrefix  = "console:"
 	metricsStreamPrefix  = "metrics:"
 	statusStreamPrefix   = "status:"
+	nodeStatusPrefix     = "nodestatus:"
 	healthStreamPrefix   = "health:"
 	alertStreamPrefix    = "alert:"
 	terminalStreamPrefix = "terminal:"
@@ -242,6 +243,13 @@ func (h *Hub) readStream(ctx context.Context, topic, streamKey string, out chan<
 // streamKeyForTopic maps a dashboard topic to its backing Redis Stream key.
 func streamKeyForTopic(topic string) (streamKey, serviceID, sessionID string, ok bool) {
 	parts := strings.Split(topic, ":")
+	if len(parts) >= 3 && parts[0] == "node" && parts[2] == "status" {
+		id := parts[1]
+		if id == "" {
+			return "", "", "", false
+		}
+		return nodeStatusPrefix + id, "", "", true
+	}
 	if len(parts) < 3 || parts[0] != "service" {
 		return "", "", "", false
 	}
@@ -288,6 +296,17 @@ func buildPayload(topic string, v map[string]interface{}) map[string]any {
 	}
 	if strings.HasSuffix(topic, ":status") {
 		out["status"] = asString(v["status"])
+		if strings.HasPrefix(topic, "node:") {
+			if n := asInt(v["cpu_cores"]); n > 0 {
+				out["cpu_cores"] = n
+			}
+			if n := asInt(v["ram_mb"]); n > 0 {
+				out["ram_mb"] = n
+			}
+			if n := asInt(v["disk_gb"]); n > 0 {
+				out["disk_gb"] = n
+			}
+		}
 		return out
 	}
 	if strings.HasSuffix(topic, ":health") {

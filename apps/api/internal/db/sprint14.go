@@ -23,15 +23,15 @@ SELECT
   u.email,
   u.name,
   COALESCE(u.role, 'user') AS role,
-  u.created_at,
+  u."createdAt",
   CASE WHEN us.user_id IS NOT NULL THEN true ELSE false END AS is_suspended,
   COUNT(s.id)                                                AS service_count,
   COUNT(CASE WHEN s.status = 'RUNNING' THEN 1 END)          AS running_count
 FROM "user" u
 LEFT JOIN services       s  ON s.owner_id  = u.id
 LEFT JOIN user_suspensions us ON us.user_id = u.id
-GROUP BY u.id, u.email, u.name, u.role, u.created_at, us.user_id
-ORDER BY u.created_at DESC
+GROUP BY u.id, u.email, u.name, u.role, u."createdAt", us.user_id
+ORDER BY u."createdAt" DESC
 `
 
 func (q *Queries) ListCustomers(ctx context.Context) ([]Customer, error) {

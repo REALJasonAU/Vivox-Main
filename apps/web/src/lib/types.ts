@@ -323,5 +323,5 @@ export interface RegisterNodeResponse {
 export interface RegisterNodeInput {
   name: string;
   region: string;
-  capacity: NodeCapacity;
+  capacity?: NodeCapacity;
 }

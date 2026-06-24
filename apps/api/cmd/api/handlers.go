@@ -346,6 +346,10 @@ func (a *api) registerNode(c *fiber.Ctx) error {
 	if req.Name == "" || req.Region == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "name and region are required")
 	}
+	capacity := req.Capacity
+	if capacity.CPUCores == 0 && capacity.RAMMb == 0 && capacity.DiskGb == 0 {
+		capacity = domain.NodeCapacity{}
+	}
 	token := req.AgentToken
 	if token == "" {
 		token = randomToken()
@@ -356,7 +360,7 @@ func (a *api) registerNode(c *fiber.Ctx) error {
 		Region:         req.Region,
 		AgentTokenHash: hex.EncodeToString(sum[:]),
 		Status:         "offline",
-		Capacity:       req.Capacity,
+		Capacity:       capacity,
 	})
 	if err != nil {
 		return err

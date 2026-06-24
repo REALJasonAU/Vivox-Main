@@ -11,6 +11,7 @@ const (
 	ConsoleStreamPrefix = "console:"
 	MetricsStreamPrefix = "metrics:"
 	StatusStreamPrefix  = "status:"
+	NodeStatusPrefix    = "nodestatus:"
 	HealthStreamPrefix  = "health:"
 	AlertStreamPrefix   = "alert:"
 	streamMaxLen        = 5000
@@ -39,6 +40,32 @@ func (p *Publisher) PublishStatus(ctx context.Context, serviceID, status string)
 			"status": status,
 			"ts":     time.Now().Unix(),
 		},
+	}).Err()
+}
+
+// PublishNodeStatus emits a node online/offline change or capacity update.
+func (p *Publisher) PublishNodeStatus(ctx context.Context, nodeID, status string, cpuCores, ramMb, diskGb int64) error {
+	if nodeID == "" {
+		return nil
+	}
+	vals := map[string]interface{}{
+		"status": status,
+		"ts":     time.Now().Unix(),
+	}
+	if cpuCores > 0 {
+		vals["cpu_cores"] = cpuCores
+	}
+	if ramMb > 0 {
+		vals["ram_mb"] = ramMb
+	}
+	if diskGb > 0 {
+		vals["disk_gb"] = diskGb
+	}
+	return p.rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: NodeStatusPrefix + nodeID,
+		MaxLen: streamMaxLen,
+		Approx: true,
+		Values: vals,
 	}).Err()
 }
 

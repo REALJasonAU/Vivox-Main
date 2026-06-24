@@ -205,6 +205,9 @@ func (s *Server) handleHeartbeat(ctx context.Context, nodeID pgtype.UUID, hb *ge
 	if _, err := s.q.UpdateNodeCapacity(ctx, db.UpdateNodeCapacityParams{ID: nodeID, Capacity: cap}); err != nil {
 		s.log.Warn("update node capacity failed", "node_id", uuidString(nodeID), "err", err)
 	}
+	if s.publisher != nil {
+		_ = s.publisher.PublishNodeStatus(ctx, uuidString(nodeID), "online", cap.CPUCores, cap.RAMMb, cap.DiskGb)
+	}
 	return nil
 }
 
@@ -458,6 +461,10 @@ func (s *Server) authenticate(ctx context.Context) (db.Node, error) {
 func (s *Server) markNode(ctx context.Context, id pgtype.UUID, statusStr string) {
 	if _, err := s.q.UpdateNodeStatus(ctx, db.UpdateNodeStatusParams{ID: id, Status: statusStr}); err != nil {
 		s.log.Warn("update node status failed", "err", err)
+		return
+	}
+	if s.publisher != nil {
+		_ = s.publisher.PublishNodeStatus(ctx, uuidString(id), statusStr, 0, 0, 0)
 	}
 }
 

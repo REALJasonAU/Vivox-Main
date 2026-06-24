@@ -10,6 +10,7 @@ import { nodesApi } from "@/lib/api";
 import { NodeSetupPanel } from "@/components/NodeSetupPanel";
 
 import { useApi } from "@/hooks/useApi";
+import { useLiveNodeStatuses } from "@/hooks/useLiveStatuses";
 
 import { useSession } from "@/lib/auth-client";
 
@@ -41,28 +42,40 @@ export default function AdminNodesPage() {
   const isAdmin = role === undefined || role === "admin";
 
   const nodes = data ?? [];
-
-
+  const liveNodes = useLiveNodeStatuses(nodes);
+  const displayNodes = useMemo(
+    () =>
+      nodes.map((n) => {
+        const live = liveNodes.get(n.id);
+        if (!live) return n;
+        return {
+          ...n,
+          status: live.status,
+          capacity: live.capacity ?? n.capacity,
+        };
+      }),
+    [nodes, liveNodes],
+  );
 
   const metrics = useMemo(() => {
 
-    const online = nodes.filter((n) => n.status === "online").length;
+    const online = displayNodes.filter((n) => n.status === "online").length;
 
-    const degraded = nodes.filter((n) => n.status === "degraded").length;
+    const degraded = displayNodes.filter((n) => n.status === "degraded").length;
 
-    const totalServices = nodes.reduce((sum, n) => sum + (n.service_count ?? 0), 0);
+    const totalServices = displayNodes.reduce((sum, n) => sum + (n.service_count ?? 0), 0);
 
     const avgCpu =
 
-      nodes.length > 0
+      displayNodes.length > 0
 
-        ? Math.round(nodes.reduce((s, n) => s + (n.cpu_usage_percent ?? 0), 0) / nodes.length)
+        ? Math.round(displayNodes.reduce((s, n) => s + (n.cpu_usage_percent ?? 0), 0) / displayNodes.length)
 
         : 0;
 
     return { online, degraded, totalServices, avgCpu };
 
-  }, [nodes]);
+  }, [displayNodes]);
 
 
 
@@ -155,7 +168,7 @@ export default function AdminNodesPage() {
 
         <Skeleton className="h-64" />
 
-      ) : nodes.length === 0 ? (
+      ) : displayNodes.length === 0 ? (
 
         <EmptyState
 
@@ -173,7 +186,7 @@ export default function AdminNodesPage() {
 
           <table className="w-full text-sm">
 
-            <thead className="bg-[#1f1f23] text-left text-xs uppercase tracking-wider text-muted">
+            <thead className="bg-surface-raised text-left text-xs uppercase tracking-wider text-muted">
 
               <tr>
 
@@ -197,7 +210,7 @@ export default function AdminNodesPage() {
 
             <tbody className="divide-y divide-border">
 
-              {nodes.map((node) => (
+              {displayNodes.map((node) => (
 
                 <NodeRow key={node.id} node={node} />
 
@@ -409,12 +422,6 @@ function RegisterNodeForm({
 
   const [name, setName] = useState("");
 
-  const [cores, setCores] = useState(4);
-
-  const [ram, setRam] = useState(16);
-
-  const [disk, setDisk] = useState(100);
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -424,7 +431,6 @@ function RegisterNodeForm({
     const input: RegisterNodeInput = {
       name: name.trim(),
       region: "local",
-      capacity: { cpu_cores: cores, ram_mb: ram * 1024, disk_gb: disk },
     };
     try {
       const res = await nodesApi.register(input);
@@ -465,15 +471,9 @@ function RegisterNodeForm({
 
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-
-        <NumField label="CPU cores" value={cores} onChange={setCores} />
-
-        <NumField label="RAM (GB)" value={ram} onChange={setRam} />
-
-        <NumField label="Disk (GB)" value={disk} onChange={setDisk} />
-
-      </div>
+      <p className="text-xs text-muted">
+        CPU, memory, and disk are detected automatically when the agent connects.
+      </p>
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
@@ -499,50 +499,5 @@ function RegisterNodeForm({
 
 }
 
-
-
-function NumField({
-
-  label,
-
-  value,
-
-  onChange,
-
-}: {
-
-  label: string;
-
-  value: number;
-
-  onChange: (n: number) => void;
-
-}) {
-
-  return (
-
-    <label className="flex flex-col gap-1.5">
-
-      <span className="text-xs uppercase tracking-wider text-muted">{label}</span>
-
-      <input
-
-        type="number"
-
-        value={value}
-
-        min={1}
-
-        onChange={(e) => onChange(Number(e.target.value))}
-
-        className="h-10 rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus"
-
-      />
-
-    </label>
-
-  );
-
-}
 
 

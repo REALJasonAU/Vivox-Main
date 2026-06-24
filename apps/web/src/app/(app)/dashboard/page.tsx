@@ -5,8 +5,8 @@ import { AnimatePresence, motion, useSpring, useTransform } from "framer-motion"
 import { Boxes, LayoutGrid, List, Play, RotateCcw, Server, Square, X } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
-import { useWebSocket } from "@/hooks/useWebSocket";
-import type { Service, ServiceStatus, StatusPayload } from "@/lib/types";
+import { useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
+import type { Service, ServiceStatus } from "@/lib/types";
 import { ServiceCard } from "@/components/service-card";
 import { ServiceRow } from "@/components/service-row";
 import { Button } from "@/components/ui/button";
@@ -43,32 +43,6 @@ function AnimatedNumber({ value }: { value: number }) {
   }, [value, spring]);
 
   return <motion.span>{display}</motion.span>;
-}
-
-function useLiveServiceStatuses(services: Service[]) {
-  const { subscribe } = useWebSocket();
-  const [statuses, setStatuses] = useState<Map<string, ServiceStatus>>(() => new Map());
-
-  useEffect(() => {
-    setStatuses(new Map(services.map((s) => [s.id, s.status])));
-  }, [services]);
-
-  useEffect(() => {
-    if (services.length === 0) return;
-    const unsubs = services.map((s) =>
-      subscribe<StatusPayload>(`service:${s.id}:status`, (payload) => {
-        if (!payload?.status) return;
-        setStatuses((prev) => {
-          const next = new Map(prev);
-          next.set(s.id, payload.status);
-          return next;
-        });
-      }),
-    );
-    return () => unsubs.forEach((u) => u());
-  }, [services, subscribe]);
-
-  return statuses;
 }
 
 function LiveStatsStrip({

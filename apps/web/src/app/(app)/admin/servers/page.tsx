@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Boxes, Rocket, Search, ShieldAlert, ExternalLink } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
+import { useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
 import { adminApi } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import type { Customer, Service } from "@/lib/types";
@@ -20,6 +21,16 @@ export default function AdminServersPage() {
   const { data: services, loading, error } = useApi<Service[]>(() => adminApi.services(), []);
   const { data: users } = useApi<Customer[]>(() => adminApi.customers(), []);
   const [query, setQuery] = useState("");
+  const statusMap = useLiveServiceStatuses(services ?? []);
+
+  const liveServices = useMemo(
+    () =>
+      (services ?? []).map((s) => ({
+        ...s,
+        status: statusMap.get(s.id) ?? s.status,
+      })),
+    [services, statusMap],
+  );
 
   const userMap = useMemo(() => {
     const m = new Map<string, Customer>();
@@ -29,7 +40,7 @@ export default function AdminServersPage() {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    const list = services ?? [];
+    const list = liveServices;
     if (!q) return list;
     return list.filter((s) => {
       const owner = userMap.get(s.owner_id);
@@ -41,7 +52,7 @@ export default function AdminServersPage() {
         (owner?.email ?? "").toLowerCase().includes(q)
       );
     });
-  }, [services, query, userMap]);
+  }, [liveServices, query, userMap]);
 
   if (role !== undefined && role !== "admin") {
     return (
@@ -66,7 +77,7 @@ export default function AdminServersPage() {
         </div>
       </div>
 
-      {(services?.length ?? 0) > 0 && (
+      {(liveServices.length ?? 0) > 0 && (
         <div className="relative max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
@@ -86,7 +97,7 @@ export default function AdminServersPage() {
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-14 text-center">
           <Boxes className="size-8 text-muted" />
           <p className="text-sm text-muted">
-            {services?.length ? "No servers match your search." : "No servers deployed yet."}
+            {liveServices.length ? "No servers match your search." : "No servers deployed yet."}
           </p>
           <Link href="/deploy">
             <Button size="sm" actionType="deploy">

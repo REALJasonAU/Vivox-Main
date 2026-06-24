@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, RefreshCw, Server } from "lucide-react";
 import { nodesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
+import { useLiveNodeStatus, useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
 import type { Node, Service } from "@/lib/types";
 import { NodeSetupPanel } from "@/components/NodeSetupPanel";
 import { StatusBadge } from "@/components/status-badge";
@@ -22,6 +23,19 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
   );
   const [setup, setSetup] = useState<{ node: Node; token: string } | null>(null);
   const [rotating, setRotating] = useState(false);
+
+  const svcList = services ?? [];
+  const liveNode = useLiveNodeStatus(node);
+  const statusMap = useLiveServiceStatuses(svcList);
+  const displayNode = node
+    ? liveNode
+      ? { ...node, status: liveNode.status, capacity: liveNode.capacity ?? node.capacity }
+      : node
+    : undefined;
+  const liveServices = svcList.map((s) => ({
+    ...s,
+    status: statusMap.get(s.id) ?? s.status,
+  }));
 
   const rotateToken = async () => {
     if (!node) return;
@@ -41,13 +55,12 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
     return <Skeleton className="h-64" />;
   }
 
-  if (error || !node) {
+  if (error || !node || !displayNode) {
     return <ErrorBanner message={error ?? "Node not found"} />;
   }
 
-  const online = (node as Node & { online?: boolean }).online ?? node.status === "online";
-  const agentId = (node as Node & { agent_id?: string }).agent_id;
-  const svcList = services ?? [];
+  const online = (displayNode as Node & { online?: boolean }).online ?? displayNode.status === "online";
+  const agentId = (displayNode as Node & { agent_id?: string }).agent_id;
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,8 +85,8 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
               <Server className="size-5 text-vivox-400" />
             </span>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-foreground">{node.name}</h1>
-              <p className="font-mono text-xs text-muted">{node.id}</p>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">{displayNode.name}</h1>
+              <p className="font-mono text-xs text-muted">{displayNode.id}</p>
             </div>
             <span
               className={cn(
@@ -89,7 +102,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
                   online ? "bg-emerald-500" : "bg-muted",
                 )}
               />
-              {node.status}
+              {displayNode.status}
             </span>
           </div>
         </div>
@@ -99,11 +112,11 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="CPU cores" value={String(node.capacity.cpu_cores)} />
-        <StatCard label="RAM" value={`${Math.round(node.capacity.ram_mb / 1024)} GB`} />
-        <StatCard label="Disk" value={`${node.capacity.disk_gb} GB`} />
-        <StatCard label="Services" value={String(node.service_count ?? svcList.length)} />
-        <StatCard label="Memory used" value={`${node.memory_used_mb ?? 0} MB`} />
+        <StatCard label="CPU cores" value={String(displayNode.capacity.cpu_cores || "—")} />
+        <StatCard label="RAM" value={displayNode.capacity.ram_mb > 0 ? `${Math.round(displayNode.capacity.ram_mb / 1024)} GB` : "—"} />
+        <StatCard label="Disk" value={displayNode.capacity.disk_gb > 0 ? `${displayNode.capacity.disk_gb} GB` : "—"} />
+        <StatCard label="Services" value={String(displayNode.service_count ?? svcList.length)} />
+        <StatCard label="Memory used" value={`${displayNode.memory_used_mb ?? 0} MB`} />
       </div>
 
       <div className="rounded-xl border border-border bg-surface p-4">
@@ -121,7 +134,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
           </div>
           <div>
             <dt className="text-muted">Last updated</dt>
-            <dd className="text-foreground">{formatRelativeTime(node.updated_at)}</dd>
+            <dd className="text-foreground">{formatRelativeTime(displayNode.updated_at)}</dd>
           </div>
         </dl>
       </div>
@@ -134,11 +147,11 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
           <div className="p-4">
             <Skeleton className="h-24" />
           </div>
-        ) : svcList.length === 0 ? (
+        ) : liveServices.length === 0 ? (
           <p className="p-6 text-center text-sm text-muted">No services on this node</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-[#1f1f23] text-left text-xs uppercase tracking-wider text-muted">
+            <thead className="bg-surface-raised text-left text-xs uppercase tracking-wider text-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Type</th>
@@ -146,8 +159,8 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {svcList.map((s) => (
-                <tr key={s.id} className="hover:bg-[#1c1c20]">
+              {liveServices.map((s) => (
+                <tr key={s.id} className="hover:bg-surface-raised/60">
                   <td className="px-4 py-3">
                     <Link href={`/services/${s.id}`} className="font-medium text-vivox-400 hover:underline">
                       {s.name}

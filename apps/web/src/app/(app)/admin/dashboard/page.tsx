@@ -23,6 +23,7 @@ import {
   YAxis,
 } from "recharts";
 import { useApi } from "@/hooks/useApi";
+import { useLiveNodeStatuses, useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
 import { adminApi, nodesApi } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import type { Customer, Node, Service, ServiceStatus } from "@/lib/types";
@@ -109,26 +110,44 @@ export default function AdminDashboardPage() {
   const loading = usersLoading || svcLoading || nodesLoading;
   const error = usersError || svcError || nodesError;
 
+  const serviceStatusMap = useLiveServiceStatuses(services ?? []);
+  const liveServices = useMemo(
+    () =>
+      (services ?? []).map((s) => ({
+        ...s,
+        status: serviceStatusMap.get(s.id) ?? s.status,
+      })),
+    [services, serviceStatusMap],
+  );
+  const liveNodes = useLiveNodeStatuses(nodes ?? []);
+  const displayNodes = useMemo(
+    () =>
+      (nodes ?? []).map((n) => {
+        const live = liveNodes.get(n.id);
+        if (!live) return n;
+        return { ...n, status: live.status, capacity: live.capacity ?? n.capacity };
+      }),
+    [nodes, liveNodes],
+  );
+
   const stats = useMemo(() => {
     const allUsers = users ?? [];
-    const allServices = services ?? [];
-    const allNodes = nodes ?? [];
-    const running = allServices.filter((s) => s.status === "RUNNING").length;
-    const onlineNodes = allNodes.filter((n) => n.online || n.status === "online").length;
+    const running = liveServices.filter((s) => s.status === "RUNNING").length;
+    const onlineNodes = displayNodes.filter((n) => n.online || n.status === "online").length;
     const activeUsers = allUsers.filter((u) => !u.is_suspended).length;
     return {
       users: allUsers.length,
       activeUsers,
-      services: allServices.length,
+      services: liveServices.length,
       running,
-      nodes: allNodes.length,
+      nodes: displayNodes.length,
       onlineNodes,
     };
-  }, [users, services, nodes]);
+  }, [users, liveServices, displayNodes]);
 
   const statusChart = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const s of services ?? []) {
+    for (const s of liveServices) {
       counts.set(s.status, (counts.get(s.status) ?? 0) + 1);
     }
     return Array.from(counts.entries()).map(([status, count]) => ({
@@ -137,15 +156,15 @@ export default function AdminDashboardPage() {
       count,
       fill: STATUS_COLORS[status as ServiceStatus] ?? "#71717a",
     }));
-  }, [services]);
+  }, [liveServices]);
 
   const typeChart = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const s of services ?? []) {
+    for (const s of liveServices) {
       counts.set(s.type, (counts.get(s.type) ?? 0) + 1);
     }
     return Array.from(counts.entries()).map(([type, count]) => ({ type, count }));
-  }, [services]);
+  }, [liveServices]);
 
   if (role !== undefined && role !== "admin") {
     return (
