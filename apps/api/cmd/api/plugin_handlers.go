@@ -124,11 +124,15 @@ func (a *api) searchPlugins(c *fiber.Ctx) error {
 	mcVer := c.Query("mc_version", "1.21.4")
 	fw := c.Query("framework", "Paper")
 	page, _ := strconv.Atoi(c.Query("page", "0"))
+	pageSize, _ := strconv.Atoi(c.Query("page_size", "100"))
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 100
+	}
 
 	if isRustService(fw) && strings.ToLower(fw) != "vanilla" {
 		var results []PluginResult
 		if source == "all" || source == "umod" {
-			if r, err := searchUmod(query, page); err == nil {
+			if r, err := searchUmod(query, page, pageSize); err == nil {
 				results = append(results, r...)
 			}
 		}
@@ -138,8 +142,15 @@ func (a *api) searchPlugins(c *fiber.Ctx) error {
 			if fwLower == "carbon" || fwLower == "carbon-minimal" {
 				cats = "2,21"
 			}
-			if r, err := searchCodefling(query, cats); err == nil {
-				results = append(results, r...)
+			if r, err := searchCodefling(query, cats, page, pageSize); err == nil {
+				if source == "all" {
+					results = append(results, r...)
+					if len(results) > pageSize {
+						results = results[:pageSize]
+					}
+				} else {
+					results = r
+				}
 			}
 		}
 		if results == nil {
@@ -486,10 +497,25 @@ func resolvePluginDir(fw string) (string, error) {
 	return frameworkPluginDir(fw)
 }
 
-func searchUmod(query string, page int) ([]PluginResult, error) {
+func paginatePluginResults(all []PluginResult, page, pageSize int) []PluginResult {
+	if pageSize < 1 {
+		pageSize = 100
+	}
+	start := page * pageSize
+	if start >= len(all) {
+		return []PluginResult{}
+	}
+	end := start + pageSize
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[start:end]
+}
+
+func searchUmod(query string, page, pageSize int) ([]PluginResult, error) {
 	u := fmt.Sprintf(
-		"https://umod.org/plugins/search.json?query=%s&page=%d&sort=latest_release_at&sortdir=desc&filter=&categories%%5B%%5D=rust&author=",
-		url.QueryEscape(query), page+1)
+		"https://umod.org/plugins/search.json?query=%s&page=%d&per_page=%d&sort=latest_release_at&sortdir=desc&filter=&categories%%5B%%5D=rust&author=",
+		url.QueryEscape(query), page+1, pageSize)
 
 	resp, err := pluginHTTPGet(u, map[string]string{"User-Agent": "Vivox-Panel/1.0"})
 	if err != nil {
@@ -572,7 +598,7 @@ func codeflingID(p CodeflingPlugin) string {
 	return fmt.Sprintf("%d", p.ID)
 }
 
-func searchCodefling(query, categories string) ([]PluginResult, error) {
+func searchCodefling(query, categories string, page, pageSize int) ([]PluginResult, error) {
 	u := fmt.Sprintf("https://www.codefling.com/db?category=%s", categories)
 
 	resp, err := pluginHTTPGet(u, map[string]string{
@@ -638,7 +664,7 @@ func searchCodefling(query, categories string) ([]PluginResult, error) {
 			JarFilename: filename,
 		})
 	}
-	return out, nil
+	return paginatePluginResults(out, page, pageSize), nil
 }
 
 func parsePluginReferences(src []byte) []string {

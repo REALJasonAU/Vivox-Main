@@ -216,7 +216,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                             </span>
                           </span>
                         }
-                        onSelect={() => run(() => router.push(`/services/${svc.id}`))}
+                        onSelect={() => run(() => router.push(`/services/${svc.id}/overview`))}
                       />
                     ))}
                   </Command.Group>

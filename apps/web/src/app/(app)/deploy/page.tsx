@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth-client";
 import { UserCombobox } from "@/components/user-combobox";
 import { TemplateInfoDialog } from "@/components/template-info-dialog";
+import { generateSecurePassword } from "@/lib/password";
 
 const TYPE_ICON: Record<ServiceType, typeof Container> = {
   game: Gamepad2,
@@ -216,7 +217,11 @@ export default function DeployPage() {
   const selectTemplate = (t: DeployTemplate) => {
     setTemplateId(t.id);
     setImage(t.defaultImage);
-    setEnv(Object.fromEntries(t.env.map((e) => [e.key, e.value])));
+    const envMap = Object.fromEntries(t.env.map((e) => [e.key, e.value]));
+    if (t.id === "rust") {
+      envMap.RCON_PASS = generateSecurePassword(20);
+    }
+    setEnv(envMap);
     setStartupCmd(t.defaultStartupCmd ?? "");
     setMemoryMb(t.defaultMemoryMb ?? 2048);
     setCpuThreads(t.defaultCpuThreads ?? 1);
@@ -275,8 +280,8 @@ export default function DeployPage() {
         port_mappings,
         main_port: mainBinding.container,
         environment: env,
-        ...((startupCmd.trim() || template.defaultStartupCmd)?.trim()
-          ? { startup_cmd: (startupCmd.trim() || template.defaultStartupCmd || "").trim() }
+        ...(template.defaultStartupCmd?.trim()
+          ? { startup_cmd: template.defaultStartupCmd.trim() }
           : {}),
         ...(template.defaultInstallScript?.trim()
           ? { install_script: template.defaultInstallScript.trim() }
@@ -298,7 +303,7 @@ export default function DeployPage() {
     try {
       const service = await servicesApi.create(input);
       toast("Deployment queued!", "success");
-      router.push(ownerId && ownerId !== session?.user?.id ? "/admin/users" : `/services/${service.id}`);
+      router.push(ownerId && ownerId !== session?.user?.id ? "/admin/users" : `/services/${service.id}/overview`);
     } catch (e) {
       const errorMsg =
         e instanceof Error

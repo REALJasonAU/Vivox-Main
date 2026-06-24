@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, ChevronRight, Clock, Container, Database, Gamepad2, Globe } from "lucide-react";
+import { ChevronRight, Clock, Container, Database, Gamepad2, Globe } from "lucide-react";
 import type { MetricsPayload, Service, ServiceStatus, ServiceType, StatusPayload } from "@/lib/types";
 import { isTransient } from "@/lib/status";
 import { useTopic } from "@/hooks/useWebSocket";
@@ -45,22 +45,9 @@ function uptimeStr(updatedAt: string): string {
   return `${m}m`;
 }
 
-export function ServiceCard({
-  service,
-  selectionMode = false,
-  selected = false,
-  onToggle,
-  onLongPress,
-}: {
-  service: Service;
-  selectionMode?: boolean;
-  selected?: boolean;
-  onToggle?: () => void;
-  onLongPress?: () => void;
-}) {
+export function ServiceCard({ service }: { service: Service }) {
   const meta = TYPE_META[service.type];
   const Icon = meta.icon;
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [status, setStatus] = useState<ServiceStatus>(service.status);
   const [metrics, setMetrics] = useState<{ cpu: number; mem: number } | null>(null);
@@ -89,66 +76,21 @@ export function ServiceCard({
   const memValue = metrics ? formatBytes(metrics.mem) : "—";
   const cpuValue = metrics ? `${metrics.cpu.toFixed(0)}%` : "—";
 
-  const startLongPress = () => {
-    longPressTimer.current = setTimeout(() => {
-      onLongPress?.();
-    }, 500);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
   return (
     <motion.div
       whileHover={{ y: -2, scale: 1.005, borderColor: "rgba(229,24,27,0.25)" }}
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 400, damping: 22 }}
-      onPointerDown={startLongPress}
-      onPointerUp={cancelLongPress}
-      onPointerLeave={cancelLongPress}
       className={cn(
         "group relative flex flex-col gap-4 rounded-xl border border-border bg-surface p-5",
         locked && "opacity-90",
-        selectionMode && !selected && "opacity-60",
       )}
     >
-      <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: selectionMode ? 1 : undefined, scale: 1 }}
-          className={cn(
-            "absolute left-3 top-3 z-20 transition-opacity",
-            !selectionMode && "opacity-0 group-hover:opacity-100",
-          )}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!selectionMode) onLongPress?.();
-            else onToggle?.();
-          }}
-        >
-          <motion.div
-            animate={selected ? { backgroundColor: "#e5181b", borderColor: "#e5181b" } : {}}
-            className="flex size-5 items-center justify-center rounded-full border-2 border-border-focus bg-surface-raised"
-          >
-            {selected && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 600, damping: 20 }}
-              >
-                <Check className="size-3 text-white" />
-              </motion.div>
-            )}
-          </motion.div>
-        </motion.div>
-
-      {!selectionMode && (
-        <Link href={`/services/${service.id}`} className="absolute inset-0 z-10 rounded-xl" aria-label={service.name} />
-      )}
+      <Link
+        href={`/services/${service.id}/overview`}
+        className="absolute inset-0 z-10 rounded-xl"
+        aria-label={service.name}
+      />
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">

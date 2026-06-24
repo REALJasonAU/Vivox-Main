@@ -19,7 +19,15 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY apps/web/ws-proxy.mjs ./ws-proxy.mjs
+COPY apps/web/start-with-ws-proxy.sh ./start-with-ws-proxy.sh
+COPY apps/web/package.json ./package.json
+RUN npm install http-proxy@1.18.1 --omit=dev --no-package-lock && rm package.json
+RUN chmod +x ./start-with-ws-proxy.sh
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-CMD ["node", "server.js"]
+ENV NEXT_INTERNAL_PORT=3001
+ENV NEXT_INTERNAL_HOST=127.0.0.1
+ENV NEXT_INTERNAL_URL=http://127.0.0.1:3001
+CMD ["sh", "./start-with-ws-proxy.sh"]

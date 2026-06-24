@@ -138,6 +138,7 @@ func (h *Hub) Serve(c *websocket.Conn) {
 
 	// Read loop: process subscribe/unsubscribe frames until the client leaves.
 	for {
+		_ = c.SetReadDeadline(time.Now().Add(90 * time.Second))
 		_, data, err := c.ReadMessage()
 		if err != nil {
 			break

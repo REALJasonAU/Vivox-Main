@@ -14,6 +14,7 @@ import {
   hasBackupAllocation,
 } from "@/lib/allocations";
 import type { Service } from "@/lib/types";
+import { isMinecraftGame } from "@/lib/game-service";
 
 type FrameworkCategory = "plugins" | "mods" | "hybrid" | "vanilla";
 
@@ -162,11 +163,12 @@ interface Props {
 }
 
 export function MinecraftSwitcher({ service, onSwitched }: Props) {
+  const isMc = isMinecraftGame(service);
   const currentFramework = service.config?.environment?.FRAMEWORK ?? "Paper";
 
   const { data: backups } = useApi(
-    () => servicesApi.listBackups(service.id),
-    [service.id],
+    () => (isMc ? servicesApi.listBackups(service.id) : Promise.resolve([])),
+    [service.id, isMc],
   );
 
   const [selected, setSelected] = useState<string | null>(null);
@@ -245,6 +247,8 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
       setBusy(false);
     }
   };
+
+  if (!isMc) return null;
 
   return (
     <div className="rounded-xl border border-border bg-surface p-5">

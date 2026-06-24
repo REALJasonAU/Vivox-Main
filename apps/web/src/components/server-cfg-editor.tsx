@@ -207,17 +207,24 @@ export function ServerCfgEditor({ service }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileCode2 className="size-4 shrink-0 text-muted" />
-          <span className="truncate font-mono text-xs text-muted">{cfgPath}</span>
-          {dirty && (
-            <span className="ml-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-px text-[10px] text-amber-400">
-              unsaved
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <FileCode2 className="size-4 text-vivox-400" />
+              CFG Editor
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              Rust server configuration — edit convars visually or in raw mode.
+            </p>
+            <p className="mt-1 truncate font-mono text-[10px] text-subtle">{cfgPath}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {dirty && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-px text-[10px] text-amber-400">
+                unsaved
+              </span>
+            )}
           <button
             onClick={() => {
               if (rawMode) switchToVisual();
@@ -245,6 +252,7 @@ export function ServerCfgEditor({ service }: Props) {
           <Button size="sm" disabled={!dirty} loading={saving} onClick={() => void handleSave()}>
             <Save className="size-3.5" /> Save
           </Button>
+          </div>
         </div>
       </div>
 

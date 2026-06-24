@@ -128,8 +128,17 @@ export function isValidHostIp(ip: string): boolean {
 
 export interface PortDisplay {
   label: string;
+  copyText: string;
   detail: string;
   isMain: boolean;
+}
+
+/** Host-facing bind string: ip:hostPort/proto (e.g. 0.0.0.0:28015/udp). */
+export function formatHostPortDisplay(b: PortBinding): string {
+  const ip = (b.hostIp || "0.0.0.0").trim();
+  const host = b.host > 0 ? b.host : b.container;
+  const proto = (b.proto || "tcp").toLowerCase();
+  return `${ip}:${host}/${proto}`;
 }
 
 /** Human-readable port list with main vs additional allocations. */
@@ -148,20 +157,17 @@ export function portsForDisplay(config: {
 
   for (const m of mappings) {
     const b = mappingToPortBinding(m);
-    const proto = (b.proto || "tcp").toLowerCase();
     const isMain =
       m.alias === "main" ||
       (mainContainer != null && mainContainer > 0 && b.container === mainContainer);
-    const host = b.host > 0 ? b.host : b.container;
-    const bindIp = b.hostIp && b.hostIp !== "0.0.0.0" ? `${b.hostIp}:` : "";
-    const label = `${bindIp}${host}/${proto}`;
+    const label = formatHostPortDisplay(b);
     const alias = m.alias?.trim();
     const detail = isMain
       ? "Main port"
       : alias
         ? `Allocation · ${alias}`
         : "Additional port";
-    out.push({ label, detail, isMain });
+    out.push({ label, copyText: label, detail, isMain });
   }
 
   if (out.length === 0) return out;

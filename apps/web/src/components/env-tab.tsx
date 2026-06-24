@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Eye, EyeOff, Save, Upload } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Eye, EyeOff, RefreshCw, Save } from "lucide-react";
 import { servicesApi, templatesApi } from "@/lib/api";
-import { mergeEnvRows, parseEnvFile } from "@/lib/env-parse";
 import { toast } from "@/hooks/useToast";
-import type { ApiConfigurableField, Service } from "@/lib/types";
+import type { ApiConfigurableField, ApiTemplate, Service } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  buildStartupRows,
+  templateIdForService,
+} from "@/lib/game-service";
+import { generateSecurePassword } from "@/lib/password";
 
 const inputClass =
   "rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus focus:ring-1 focus:ring-border-focus";
@@ -24,55 +28,44 @@ function fieldMetaForKey(
 export function StartupTab({
   service,
   onChanged,
-  defaultStartupCmd = "Image entrypoint (automatic)",
 }: {
   service: Service;
   onChanged: (s: Service) => void;
-  defaultStartupCmd?: string;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [template, setTemplate] = useState<ApiTemplate | null>(null);
   const [fieldDefs, setFieldDefs] = useState<ApiConfigurableField[]>([]);
-
-  const visibleEnv = useMemo(() => {
-    const env = service.config.environment ?? {};
-    return Object.entries(env).filter(([key]) => !HIDDEN_KEYS.has(key));
-  }, [service.config.environment]);
-
-  const initial = visibleEnv.map(([key, value]) => ({ key, value }));
-  const [rows, setRows] = useState(initial.length > 0 ? initial : []);
+  const [rows, setRows] = useState<{ key: string; value: string }[]>([]);
   const [masked, setMasked] = useState<Set<string>>(() => new Set());
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkText, setBulkText] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [cmdOpen, setCmdOpen] = useState(true);
-  const [startupCmd, setStartupCmd] = useState(service.config.startup_cmd ?? "");
-  const [dragOver, setDragOver] = useState(false);
+
+  const templateId = useMemo(() => templateIdForService(service), [service]);
 
   useEffect(() => {
     void templatesApi.list().then((templates) => {
-      const game = templates.find((t) => t.type === "game" && t.id === "minecraft");
-      if (game?.configurable) setFieldDefs(game.configurable);
+      const id = templateId ?? (service.type === "game" ? "minecraft" : null);
+      const match = id ? templates.find((t) => t.id === id) : undefined;
+      setTemplate(match ?? null);
+      setFieldDefs(match?.configurable ?? []);
     });
-  }, []);
+  }, [templateId, service.type]);
 
   useEffect(() => {
-    setRows(visibleEnv.map(([key, value]) => ({ key, value })));
-    setStartupCmd(service.config.startup_cmd ?? "");
-  }, [visibleEnv, service.config.startup_cmd]);
+    setRows(buildStartupRows(service, template, HIDDEN_KEYS));
+  }, [service, template]);
 
-  const importParsed = useCallback((parsed: { key: string; value: string }[]) => {
-    const filtered = parsed.filter((p) => !HIDDEN_KEYS.has(p.key));
-    if (filtered.length === 0) return;
-    setRows((prev) => mergeEnvRows(prev, filtered));
-    toast(`Imported ${filtered.length} variables`, "success");
-  }, []);
-
-  const onFileSelect = async (file: File | undefined) => {
-    if (!file) return;
-    const text = await file.text();
-    importParsed(parseEnvFile(text));
-  };
+  useEffect(() => {
+    const cmd = template?.startup_cmd?.trim();
+    if (!cmd || service.config.startup_cmd?.trim()) return;
+    void servicesApi
+      .updateConfig(service.id, { startup_cmd: cmd })
+      .then((updated) => {
+        if (updated) onChanged(updated);
+      })
+      .catch(() => {
+        /* non-fatal — user can redeploy */
+      });
+  }, [template, service.id, service.config.startup_cmd, onChanged]);
 
   const toggleMask = (key: string) => {
     setMasked((prev) => {
@@ -96,10 +89,7 @@ export function StartupTab({
     const env = { ...hidden, ...edited };
     try {
       const updated = await servicesApi.updateEnv(service.id, env);
-      const withCmd = await servicesApi.updateConfig(service.id, {
-        startup_cmd: startupCmd.trim() || undefined,
-      });
-      onChanged(withCmd ?? updated);
+      onChanged(updated);
       toast("Startup settings saved", "success");
       setMsg("Restart the service to apply changes.");
     } catch (e) {
@@ -111,93 +101,25 @@ export function StartupTab({
     }
   };
 
+  const startupCmdPreview = service.config.startup_cmd?.trim() || template?.startup_cmd?.trim();
+
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-3 rounded-xl border bg-surface p-4 transition-colors",
-        dragOver ? "border-vivox-500/50" : "border-border",
-      )}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-        const file = e.dataTransfer.files[0];
-        void onFileSelect(file);
-      }}
-    >
-      <div className="rounded-lg border border-border">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between px-3 py-2 text-sm text-foreground"
-          onClick={() => setCmdOpen((o) => !o)}
-        >
-          <span>Startup command</span>
-          {cmdOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-        </button>
-        {cmdOpen && (
-          <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
-            <p className="text-xs text-muted">
-              Default:{" "}
-              <span className="font-mono text-muted">{defaultStartupCmd}</span>
-            </p>
-            <label className="flex flex-col gap-1 text-xs text-muted">
-              This server&apos;s command
-              <input
-                value={startupCmd}
-                onChange={(e) => setStartupCmd(e.target.value)}
-                placeholder="Leave empty to use the default"
-                className={cn(inputClass, "h-9 w-full")}
-              />
-            </label>
-          </div>
-        )}
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">Startup parameters</h2>
+        <p className="mt-1 text-xs text-muted">
+          Environment variables passed to the container. Keys are defined by the game template.
+        </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".env,text/plain"
-          className="hidden"
-          onChange={(e) => void onFileSelect(e.target.files?.[0])}
-        />
-        <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
-          <Upload className="size-3.5" /> Import .env
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setBulkOpen((o) => !o)}>
-          Bulk paste
-        </Button>
-        {dragOver && <span className="text-xs text-vivox-400">Drop .env file to import</span>}
-      </div>
-
-      {bulkOpen && (
-        <div className="flex flex-col gap-2 rounded-lg border border-border bg-background/50 p-3">
-          <textarea
-            value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
-            placeholder={"KEY=value\nANOTHER=value"}
-            rows={4}
-            className={cn(inputClass, "min-h-[80px] w-full resize-y")}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setBulkOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                importParsed(parseEnvFile(bulkText));
-                setBulkText("");
-                setBulkOpen(false);
-              }}
-            >
-              Apply
-            </Button>
-          </div>
+      {startupCmdPreview && (
+        <div className="rounded-lg border border-border bg-background/40 px-3 py-2.5">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">
+            Startup command (from template)
+          </p>
+          <p className="mt-1 max-h-24 overflow-y-auto font-mono text-[11px] leading-relaxed text-muted">
+            {startupCmdPreview}
+          </p>
         </div>
       )}
 
@@ -212,11 +134,13 @@ export function StartupTab({
           const isSelect = meta?.field_type === "select" && options && options.length > 0;
           const isPassword = meta?.field_type === "password";
           const isNumber = meta?.field_type === "number";
+          const isRcon = row.key === "RCON_PASS";
 
           return (
             <div key={row.key} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
               <div className="min-w-0 sm:w-1/3">
                 <p className="font-mono text-xs font-medium uppercase text-foreground">{label}</p>
+                <p className="font-mono text-[10px] text-subtle">{row.key}</p>
                 {meta?.description && (
                   <p className="text-[10px] text-subtle">{meta.description}</p>
                 )}
@@ -241,6 +165,18 @@ export function StartupTab({
                   placeholder="value"
                   className={cn(inputClass, "h-9 flex-1")}
                 />
+              )}
+              {isRcon && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 px-2"
+                  title="Generate new RCON password"
+                  onClick={() => updateValue(row.key, generateSecurePassword(20))}
+                >
+                  <RefreshCw className="size-3.5" />
+                </Button>
               )}
               {(isPassword || row.key.toLowerCase().includes("pass")) && (
                 <Button

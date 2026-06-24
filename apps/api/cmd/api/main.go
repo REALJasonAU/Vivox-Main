@@ -185,7 +185,13 @@ func startGRPC(ctx context.Context, cfg config.Config, srv *grpcsrv.Server, log 
 
 // buildHTTP assembles the Fiber app: middleware, REST routes, and the WS hub.
 func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
-	app := fiber.New(fiber.Config{ErrorHandler: errorHandler})
+	app := fiber.New(fiber.Config{
+		ErrorHandler: errorHandler,
+		// Honor X-Forwarded-* from Pangolin / other reverse proxies.
+		ProxyHeader:             fiber.HeaderXForwardedFor,
+		EnableTrustedProxyCheck: true,
+		TrustedProxies:          []string{"0.0.0.0/0", "::/0"},
+	})
 	app.Use(recover.New())
 
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -212,6 +218,7 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 	apiGroup.Get("/services/:id/files", a.listFiles)
 	apiGroup.Get("/services/:id/files/read", a.readFile)
 	apiGroup.Post("/services/:id/files/write", a.writeFile)
+	apiGroup.Post("/services/:id/files/mkdir", a.mkdirFile)
 	apiGroup.Get("/services/:id/schedule", a.listScheduledTasks)
 	apiGroup.Post("/services/:id/schedule", a.createScheduledTask)
 	apiGroup.Delete("/services/:id/schedule/:taskId", a.deleteScheduledTask)
@@ -267,6 +274,7 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 	admin.Get("/nodes/:id/services", a.listNodeServices)
 	admin.Post("/nodes/:id/rotate-token", a.rotateNodeToken)
 	admin.Get("/services", a.listAllServices)
+	admin.Patch("/services/:id", a.adminPatchService)
 	admin.Get("/audit", a.listAuditEvents)
 	admin.Get("/customers", a.listCustomers)
 	admin.Patch("/customers/:userId/suspend", a.suspendCustomer)
@@ -279,7 +287,10 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 		}
 		return fiber.ErrUpgradeRequired
 	})
-	apiGroup.Get("/ws", websocket.New(hub.Serve))
+	apiGroup.Get("/ws", websocket.New(hub.Serve, websocket.Config{
+		HandshakeTimeout:  15 * time.Second,
+		EnableCompression: false,
+	}))
 
 	return app
 }

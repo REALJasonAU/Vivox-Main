@@ -2,6 +2,8 @@
 
 import { X } from "lucide-react";
 import type { DeployTemplate } from "@/lib/types";
+import { portsForDisplay, parsePortBinding } from "@/lib/ports";
+import { PortDisplayList } from "@/components/port-display-list";
 import { Button } from "@/components/ui/button";
 
 export function TemplateInfoDialog({
@@ -11,6 +13,13 @@ export function TemplateInfoDialog({
   template: DeployTemplate;
   onClose: () => void;
 }) {
+  const firstBinding = template.defaultPorts[0]
+    ? parsePortBinding(template.defaultPorts[0])
+    : null;
+  const defaultPortItems = portsForDisplay({
+    ports: template.defaultPorts,
+    main_port: firstBinding?.container,
+  });
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -40,8 +49,12 @@ export function TemplateInfoDialog({
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wider text-muted">Default ports</dt>
-            <dd className="mt-0.5 font-mono text-foreground">
-              {template.defaultPorts.length ? template.defaultPorts.join(", ") : "Configure at deploy"}
+            <dd className="mt-1">
+              {defaultPortItems.length > 0 ? (
+                <PortDisplayList ports={defaultPortItems} compact />
+              ) : (
+                <span className="font-mono text-foreground">Configure at deploy</span>
+              )}
             </dd>
           </div>
           {template.defaultStartupCmd && (

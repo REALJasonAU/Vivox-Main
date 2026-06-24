@@ -148,6 +148,53 @@ type writeFileReq struct {
 	Content string `json:"content"`
 }
 
+type mkdirReq struct {
+	Path string `json:"path"`
+}
+
+func (a *api) mkdirFile(c *fiber.Ctx) error {
+	svc, err := a.loadOwned(c)
+	if err != nil {
+		return err
+	}
+	var req mkdirReq
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	if req.Path == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "path is required")
+	}
+	safe, err := validateServiceFilePath(req.Path)
+	if err != nil {
+		return err
+	}
+	placeholder := safe + "/.vivox-dir"
+	_, err = a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_WriteFile{
+			WriteFile: &gen.FileWriteTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      placeholder,
+				Content:   []byte{},
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_DeleteFile{
+			DeleteFile: &gen.FileDeleteTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      placeholder,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func (a *api) writeFile(c *fiber.Ctx) error {
 	svc, err := a.loadOwned(c)
 	if err != nil {

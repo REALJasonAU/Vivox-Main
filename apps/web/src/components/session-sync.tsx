@@ -3,12 +3,10 @@
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { markTokenSyncComplete, setApiToken } from "@/lib/api";
+import { setWsToken } from "@/lib/ws-token";
 
-let wsToken: string | null = null;
-
-export function getWsToken(): string | null {
-  return wsToken;
-}
+/** @deprecated Import from @/lib/ws-token */
+export { getWsToken } from "@/lib/ws-token";
 
 /**
  * Bridges the Better Auth JWT into the REST + WebSocket clients.
@@ -34,14 +32,14 @@ export function SessionSync() {
         const token = await fetchToken();
         if (cancelled) return;
         if (token) {
-          wsToken = token;
+          setWsToken(token);
           setApiToken(token);
           return;
         }
         await new Promise((r) => setTimeout(r, 400));
       }
       if (!cancelled) {
-        wsToken = null;
+        setWsToken(null);
         setApiToken(null);
         markTokenSyncComplete();
       }
@@ -52,7 +50,7 @@ export function SessionSync() {
     const id = setInterval(async () => {
       const token = await fetchToken();
       if (token) {
-        wsToken = token;
+        setWsToken(token);
         setApiToken(token);
       }
     }, 45_000);

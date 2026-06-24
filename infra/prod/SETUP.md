@@ -86,6 +86,20 @@ Pangolin runs on a **separate server** and terminates SSL. Point your panel doma
 
 The production `docker-compose.yml` exposes `3000:3000` on the host — no local Traefik network is required.
 
+### WebSocket (required for live console, metrics, status)
+
+The panel uses a single multiplexed WebSocket at `/api/control/ws`. The web container runs a small **WS upgrade proxy** (`ws-proxy.mjs`) because Next.js rewrites do not forward WebSocket handshakes in standalone mode.
+
+**Optional Pangolin header override** (recommended if you see upgrade failures): on the panel resource, add a custom request header:
+
+| Header | Value |
+|--------|--------|
+| `X-Forwarded-Proto` | `https` |
+
+Pangolin/Traefik sometimes sends `x-forwarded-proto: wss` on WebSocket upgrades; some stacks expect `https` per [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Forwarded-Proto). The built-in proxy normalizes this, but the header override is a useful belt-and-suspenders fix.
+
+After deploy, verify in browser DevTools → Network → WS: `wss://your-domain/api/control/ws` should show **101 Switching Protocols**, not immediate failure.
+
 ---
 
 ## Step 4 — Open port 9090

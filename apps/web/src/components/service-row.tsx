@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, ChevronRight, Clock } from "lucide-react";
+import { ChevronRight, Clock } from "lucide-react";
 import type { MetricsPayload, Service, ServiceStatus, StatusPayload } from "@/lib/types";
 import { STATUS_META } from "@/lib/status";
 import { useTopic } from "@/hooks/useWebSocket";
@@ -18,20 +18,7 @@ function uptimeStr(updatedAt: string): string {
   return `${m}m`;
 }
 
-export function ServiceRow({
-  service,
-  selectionMode = false,
-  selected = false,
-  onToggle,
-  onLongPress,
-}: {
-  service: Service;
-  selectionMode?: boolean;
-  selected?: boolean;
-  onToggle?: () => void;
-  onLongPress?: () => void;
-}) {
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function ServiceRow({ service }: { service: Service }) {
   const [status, setStatus] = useState<ServiceStatus>(service.status);
   const [metrics, setMetrics] = useState<{ cpu: number; mem: number } | null>(null);
 
@@ -64,48 +51,11 @@ export function ServiceRow({
       "—"
     );
 
-  const startLongPress = () => {
-    longPressTimer.current = setTimeout(() => {
-      onLongPress?.();
-    }, 500);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
-  const inner = (
-  <>
-      {selectionMode && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="relative z-20 shrink-0"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggle?.();
-          }}
-        >
-          <motion.div
-            animate={selected ? { backgroundColor: "#e5181b", borderColor: "#e5181b" } : {}}
-            className="flex size-5 items-center justify-center rounded-full border-2 border-border-focus bg-surface-raised"
-          >
-            {selected && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 600, damping: 20 }}
-              >
-                <Check className="size-3 text-white" />
-              </motion.div>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
+  return (
+    <Link
+      href={`/services/${service.id}/overview`}
+      className="group flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 transition-all duration-200 hover:border-border-focus"
+    >
       <span
         className={cn("size-2 shrink-0 rounded-full", meta.pulse && "animate-pulse")}
         style={{ background: `rgb(var(--status-${meta.color}))` }}
@@ -130,40 +80,7 @@ export function ServiceRow({
       <span className="hidden w-20 shrink-0 text-xs text-muted md:block">{uptime}</span>
       <span className="hidden w-16 shrink-0 font-mono text-xs text-muted lg:block">{cpuValue}</span>
       <span className="hidden w-20 shrink-0 font-mono text-xs text-muted lg:block">{memValue}</span>
-      {!selectionMode && (
-        <ChevronRight className="size-4 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-      )}
-  </>
-  );
-
-  if (selectionMode) {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        onPointerDown={startLongPress}
-        onPointerUp={cancelLongPress}
-        onPointerLeave={cancelLongPress}
-        onClick={onToggle}
-        className={cn(
-          "group relative flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 transition-all duration-200",
-          !selected && "opacity-60",
-        )}
-      >
-        {inner}
-      </div>
-    );
-  }
-
-  return (
-    <Link
-      href={`/services/${service.id}`}
-      onPointerDown={startLongPress}
-      onPointerUp={cancelLongPress}
-      onPointerLeave={cancelLongPress}
-      className="group flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 transition-all duration-200 hover:border-border-focus"
-    >
-      {inner}
+      <ChevronRight className="size-4 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
     </Link>
   );
 }

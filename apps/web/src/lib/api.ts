@@ -10,6 +10,7 @@ import type {
   Deployment,
   FileEntry,
   Node,
+  PortMapping,
   RegisterNodeInput,
   RegisterNodeResponse,
   ResourceLimits,
@@ -56,6 +57,11 @@ export function setApiToken(token: string | null): void {
     _tokenSyncResolve?.();
     _tokenSyncResolve = undefined;
   }
+}
+
+/** Current Better Auth JWT for local sync / tooling (null until SessionSync). */
+export function getApiToken(): string | null {
+  return authToken;
 }
 
 /** Called when SessionSync finishes retrying without obtaining a JWT. */
@@ -219,6 +225,7 @@ export const servicesApi = {
       mc_version: string;
       framework: string;
       page?: number;
+      page_size?: number;
     },
   ) =>
     apiFetch<{ results: PluginResult[] }>(
@@ -229,6 +236,7 @@ export const servicesApi = {
           mc_version: params.mc_version,
           framework: params.framework,
           page: String(params.page ?? 0),
+          page_size: String(params.page_size ?? 100),
         }),
     ),
   installPlugin: (
@@ -314,7 +322,52 @@ export const filesApi = {
       body: { path, content: btoa(content) },
       raw: true,
     }),
+  mkdir: (id: string, path: string) =>
+    apiFetch<void>(`/services/${id}/files/mkdir`, {
+      method: "POST",
+      body: { path },
+      raw: true,
+    }),
+  localSyncManifest: (id: string) => fetchLocalSyncManifest(id),
 };
+
+export interface LocalSyncManifest {
+  service_id: string;
+  api_base: string;
+  root: string;
+  list_endpoint: string;
+  read_endpoint: string;
+  write_endpoint: string;
+  sync_script_url: string;
+  token_hint: string;
+}
+
+async function fetchLocalSyncManifest(serviceId: string): Promise<LocalSyncManifest> {
+  if (typeof window !== "undefined") {
+    await _tokenSyncPromise;
+  }
+  const res = await fetch(`/api/services/${serviceId}/files/local-sync`, {
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    let parsed: unknown = null;
+    try {
+      parsed = await res.json();
+    } catch {
+      parsed = null;
+    }
+    const message =
+      (parsed && typeof parsed === "object" && "message" in parsed
+        ? String((parsed as { message: unknown }).message)
+        : null) ?? `Request failed: ${res.status}`;
+    throw new ApiError(message, res.status, parsed);
+  }
+  return (await res.json()) as LocalSyncManifest;
+}
 
 export const scheduleApi = {
   list: (serviceId: string) => apiFetch<ScheduledTask[]>(`/services/${serviceId}/schedule`),
@@ -373,6 +426,16 @@ export const auditApi = {
 export const adminApi = {
   customers: () => apiFetch<Customer[]>("/admin/customers"),
   services: () => apiFetch<Service[]>("/admin/services"),
+  updateService: (
+    id: string,
+    body: {
+      owner_id?: string;
+      resource_limits?: ResourceLimits;
+      ports?: string[];
+      port_mappings?: PortMapping[];
+      main_port?: number;
+    },
+  ) => apiFetch<Service>(`/admin/services/${id}`, { method: "PATCH", body }),
   suspendCustomer: (userId: string, reason?: string) =>
     apiFetch<void>(`/admin/customers/${userId}/suspend`, {
       method: "PATCH",

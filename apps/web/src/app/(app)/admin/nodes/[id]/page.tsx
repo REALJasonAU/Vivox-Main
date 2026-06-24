@@ -158,7 +158,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
               {liveServices.map((s) => (
                 <tr key={s.id} className="hover:bg-surface-raised/60">
                   <td className="px-4 py-3">
-                    <Link href={`/services/${s.id}`} className="font-medium text-vivox-400 hover:underline">
+                    <Link href={`/services/${s.id}/overview`} className="font-medium text-vivox-400 hover:underline">
                       {s.name}
                     </Link>
                   </td>

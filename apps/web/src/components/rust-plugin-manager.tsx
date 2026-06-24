@@ -15,7 +15,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
-  Info,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,8 @@ const SOURCE_BADGE: Record<string, string> = {
   codefling: "text-vivox-400 bg-vivox-500/10 border-vivox-500/20",
   manual: "text-zinc-400 bg-zinc-500/10 border-zinc-500/20",
 };
+
+const PAGE_SIZE = 100;
 
 function fmtDownloads(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -64,6 +67,8 @@ export function RustPluginManager({ service }: Props) {
 
   const [busyPlugins, setBusy] = useState<Record<string, string>>({});
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cacheRef = useRef<Map<string, PluginResult[]>>(new Map());
+  const preloadedRef = useRef(false);
 
   const loadInstalled = useCallback(async () => {
     setLoadingInstalled(true);
@@ -80,7 +85,14 @@ export function RustPluginManager({ service }: Props) {
   }, [loadInstalled]);
 
   const doSearch = useCallback(
-    async (q: string, src: RustSource, pg: number) => {
+    async (q: string, src: RustSource, pg: number, immediate = false) => {
+      const cacheKey = `${src}:${pg}:${q}`;
+      const cached = cacheRef.current.get(cacheKey);
+      if (cached) {
+        setSearchResults(cached);
+        return;
+      }
+
       setSearching(true);
       try {
         const data = await servicesApi.searchPlugins(service.id, {
@@ -89,16 +101,27 @@ export function RustPluginManager({ service }: Props) {
           mc_version: "",
           framework: fw,
           page: pg,
+          page_size: PAGE_SIZE,
         });
-        setSearchResults(data.results ?? []);
+        const results = data.results ?? [];
+        cacheRef.current.set(cacheKey, results);
+        setSearchResults(results);
       } catch {
         setSearchResults([]);
       } finally {
         setSearching(false);
       }
+      void immediate;
     },
     [service.id, fw],
   );
+
+  useEffect(() => {
+    if (!preloadedRef.current) {
+      preloadedRef.current = true;
+      void doSearch("", "all", 0, true);
+    }
+  }, [doSearch]);
 
   useEffect(() => {
     if (showInstalled) return;
@@ -278,15 +301,6 @@ export function RustPluginManager({ service }: Props) {
           ))}
           <span className="ml-auto text-[10px] text-subtle">{fwLabel}</span>
         </div>
-        <div className="flex items-start gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-1.5">
-          <Info className="mt-0.5 size-3 shrink-0 text-muted" />
-          <p className="text-[10px] leading-relaxed text-subtle">
-            <span className="font-medium text-vivox-400">uMod</span> plugins install with one click.{" "}
-            <span className="font-medium text-vivox-400">Codefling</span> plugins require manual download — use the{" "}
-            <span className="text-foreground">Visit</span> button, then upload the <code>.cs</code> file via the{" "}
-            <span className="text-foreground">Files</span> tab. The panel will detect and track it automatically.
-          </p>
-        </div>
       </div>
 
       <AnimatePresence>
@@ -358,24 +372,29 @@ export function RustPluginManager({ service }: Props) {
               })}
             </div>
           )}
-          {!searching && searchResults.length > 0 && (
-            <div className="flex justify-center gap-2">
+          {!searching && (searchResults.length > 0 || page > 0) && (
+            <div className="flex items-center justify-center gap-3 border-t border-border pt-4">
               <Button
                 size="sm"
-                variant="ghost"
+                variant="outline"
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
               >
-                <ChevronUp className="size-3.5" /> Prev
+                <ChevronLeft className="size-3.5" /> Previous
               </Button>
-              <span className="flex items-center px-2 text-xs text-muted">Page {page + 1}</span>
+              <span className="text-xs text-muted">
+                Page {page + 1}
+                {searchResults.length > 0 && (
+                  <span className="text-subtle"> · {searchResults.length} results</span>
+                )}
+              </span>
               <Button
                 size="sm"
-                variant="ghost"
-                disabled={searchResults.length < 10}
+                variant="outline"
+                disabled={searchResults.length < PAGE_SIZE}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next <ChevronDown className="size-3.5" />
+                Next <ChevronRight className="size-3.5" />
               </Button>
             </div>
           )}

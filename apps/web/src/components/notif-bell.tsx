@@ -99,7 +99,7 @@ export function NotifBell({ compact = false }: { compact?: boolean }) {
                   {shown.map((n) => (
                     <li key={n.id}>
                       <Link
-                        href={`/services/${n.serviceId}`}
+                        href={`/services/${n.serviceId}/overview`}
                         onClick={() => setOpen(false)}
                         className={cn(
                           "flex items-start gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-surface-raised/50",
