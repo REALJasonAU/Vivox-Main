@@ -41,11 +41,11 @@ export function Toaster() {
             role="status"
           >
             <span className="mt-0.5 shrink-0">{ICONS[t.variant]}</span>
-            <span className="flex-1 text-sm text-zinc-100">{t.message}</span>
+            <span className="flex-1 text-sm text-foreground">{t.message}</span>
             <button
               type="button"
               onClick={() => dismiss(t.id)}
-              className="shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-200"
+              className="shrink-0 rounded p-0.5 text-muted hover:text-foreground"
               aria-label="Dismiss"
             >
               <X className="size-3.5" />

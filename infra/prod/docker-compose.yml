@@ -59,6 +59,7 @@ services:
       REDIS_ADDR: redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_JWKS_URL: http://web:3000/api/auth/jwks
       GRPC_TLS_DISABLED: "${GRPC_TLS_DISABLED:-false}"
       GRPC_CERT_DIR: /app/certs
       MIGRATIONS_DIR: /app/infra/migrations

@@ -44,8 +44,8 @@ const cardVariants = {
 
 export function LandingPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
-      <header className="flex items-center justify-between border-b border-zinc-900 px-6 py-4">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="flex items-center justify-between border-b border-border px-6 py-4">
         <Link href="/" className="flex items-center gap-2.5">
           <VivoxLogo size={32} />
           <span className="text-sm font-semibold tracking-tight">Vivox</span>
@@ -76,11 +76,11 @@ export function LandingPage() {
             transition={{ delay: 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-col gap-4"
           >
-            <h1 className="text-5xl font-bold tracking-tight text-zinc-50 sm:text-6xl">
+            <h1 className="text-5xl font-bold tracking-tight text-foreground sm:text-6xl">
               Hosting that{" "}
               <span className="text-vivox-400">just works</span>
             </h1>
-            <p className="mx-auto max-w-xl text-lg text-zinc-400">
+            <p className="mx-auto max-w-xl text-lg text-muted">
               Game servers, web apps, and databases — deployed in seconds on edge infrastructure
               built for reliability.
             </p>
@@ -108,7 +108,7 @@ export function LandingPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.45, duration: 0.4 }}
-            className="flex flex-wrap items-center justify-center gap-6 text-sm text-zinc-500"
+            className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted"
           >
             {PERKS.map(({ icon: Icon, label }) => (
               <span key={label} className="flex items-center gap-1.5">
@@ -128,14 +128,14 @@ export function LandingPage() {
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
-                className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
+                className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6"
               >
                 <div className="grid size-10 place-items-center rounded-xl bg-vivox-500/10">
                   <f.icon className="size-5 text-vivox-400" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-zinc-100">{f.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">{f.description}</p>
+                  <h3 className="font-semibold text-foreground">{f.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted">{f.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -143,7 +143,7 @@ export function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-zinc-900 px-6 py-5 text-center text-xs text-zinc-600">
+      <footer className="border-t border-border px-6 py-5 text-center text-xs text-subtle">
         © {new Date().getFullYear()} Vivox. All rights reserved.
       </footer>
     </div>

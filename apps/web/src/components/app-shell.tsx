@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onOpenMobileNav={() => setMobileNavOpen(true)} />
-        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main className="flex-1 px-4 py-4 md:px-6 md:py-5">
           <div className="mx-auto w-full max-w-7xl">
             <PageTransition>{children}</PageTransition>
           </div>

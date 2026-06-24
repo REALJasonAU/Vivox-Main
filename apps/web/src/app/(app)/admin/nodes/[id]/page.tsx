@@ -63,7 +63,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
         <div className="flex flex-col gap-2">
           <Link
             href="/admin/nodes"
-            className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300"
+            className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
           >
             <ArrowLeft className="size-4" /> Back to nodes
           </Link>
@@ -72,21 +72,21 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
               <Server className="size-5 text-vivox-400" />
             </span>
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">{node.name}</h1>
-              <p className="text-sm text-zinc-500">{node.region}</p>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">{node.name}</h1>
+              <p className="font-mono text-xs text-muted">{node.id}</p>
             </div>
             <span
               className={cn(
                 "ml-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs capitalize",
                 online
                   ? "bg-emerald-500/10 text-emerald-400"
-                  : "bg-zinc-800 text-zinc-400",
+                  : "bg-surface-raised text-muted",
               )}
             >
               <span
                 className={cn(
                   "size-1.5 rounded-full",
-                  online ? "bg-emerald-500" : "bg-zinc-500",
+                  online ? "bg-emerald-500" : "bg-muted",
                 )}
               />
               {node.status}
@@ -106,46 +106,46 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
         <StatCard label="Memory used" value={`${node.memory_used_mb ?? 0} MB`} />
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-        <h2 className="text-sm font-medium text-zinc-100">Connected agent</h2>
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="text-sm font-medium text-foreground">Connected agent</h2>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-zinc-500">Stream</dt>
-            <dd className={online ? "text-emerald-400" : "text-zinc-400"}>
+            <dt className="text-muted">Stream</dt>
+            <dd className={online ? "text-emerald-400" : "text-muted"}>
               {online ? "Online" : "Offline"}
             </dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Agent ID</dt>
-            <dd className="font-mono text-zinc-300">{agentId || "—"}</dd>
+            <dt className="text-muted">Agent ID</dt>
+            <dd className="font-mono text-foreground">{agentId || "—"}</dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Last updated</dt>
-            <dd className="text-zinc-300">{formatRelativeTime(node.updated_at)}</dd>
+            <dt className="text-muted">Last updated</dt>
+            <dd className="text-foreground">{formatRelativeTime(node.updated_at)}</dd>
           </div>
         </dl>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
-        <div className="border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-medium text-zinc-100">Assigned services</h2>
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="text-sm font-medium text-foreground">Assigned services</h2>
         </div>
         {servicesLoading ? (
           <div className="p-4">
             <Skeleton className="h-24" />
           </div>
         ) : svcList.length === 0 ? (
-          <p className="p-6 text-center text-sm text-zinc-500">No services on this node</p>
+          <p className="p-6 text-center text-sm text-muted">No services on this node</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-[#1f1f23] text-left text-xs uppercase tracking-wider text-zinc-500">
+            <thead className="bg-[#1f1f23] text-left text-xs uppercase tracking-wider text-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800">
+            <tbody className="divide-y divide-border">
               {svcList.map((s) => (
                 <tr key={s.id} className="hover:bg-[#1c1c20]">
                   <td className="px-4 py-3">
@@ -153,7 +153,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
                       {s.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-zinc-400">{s.type}</td>
+                  <td className="px-4 py-3 text-muted">{s.type}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={s.status} size="sm" />
                   </td>
@@ -169,9 +169,9 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-      <p className="text-xs uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight text-zinc-100">{value}</p>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
     </div>
   );
 }

@@ -167,14 +167,14 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/50 p-0.5">
+        <div className="flex rounded-lg border border-border bg-background/50 p-0.5">
           <motion.button
             type="button"
             onClick={() => setMode("live")}
             whileTap={{ scale: 0.95 }}
             className={cn(
               "rounded-md px-2.5 py-1 text-xs font-medium",
-              mode === "live" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300",
+              mode === "live" ? "bg-surface-raised text-foreground" : "text-muted hover:text-foreground",
             )}
           >
             <span className="flex items-center gap-1.5">
@@ -190,7 +190,7 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
             whileTap={{ scale: 0.95 }}
             className={cn(
               "rounded-md px-2.5 py-1 text-xs font-medium",
-              mode === "history" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300",
+              mode === "history" ? "bg-surface-raised text-foreground" : "text-muted hover:text-foreground",
             )}
           >
             History
@@ -199,7 +199,7 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
 
         {mode === "history" && (
           <>
-            <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-950/50 p-0.5">
+            <div className="flex gap-1 rounded-lg border border-border bg-background/50 p-0.5">
               {(["1h", "6h", "24h"] as HistRange[]).map((r) => (
                 <button
                   key={r}
@@ -207,7 +207,7 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
                   onClick={() => setHistRange(r)}
                   className={cn(
                     "rounded-md px-2 py-1 text-xs",
-                    histRange === r ? "bg-zinc-800 text-zinc-100" : "text-zinc-500",
+                    histRange === r ? "bg-surface-raised text-foreground" : "text-muted",
                   )}
                 >
                   {r}
@@ -221,7 +221,7 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
         )}
 
         <div className="relative min-w-[140px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-500" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
           <input
             value={mode === "history" ? histSearch : filter}
             onChange={(e) => (mode === "history" ? setHistSearch(e.target.value) : setFilter(e.target.value))}
@@ -229,7 +229,7 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
               if (mode === "history" && e.key === "Enter") void fetchHistory();
             }}
             placeholder="Search…"
-            className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-950/50 pl-8 pr-3 text-sm text-zinc-100 outline-none focus:border-zinc-700"
+            className="h-9 w-full rounded-lg border border-border bg-background/50 pl-8 pr-3 text-sm text-foreground outline-none focus:border-border-focus"
           />
         </div>
 
@@ -272,7 +272,7 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
         <span
           className={cn(
             "ml-auto text-xs font-mono",
-            nearLimit || histTruncated ? "text-amber-400" : "text-zinc-500",
+            nearLimit || histTruncated ? "text-amber-400" : "text-muted",
           )}
         >
           {mode === "history"
@@ -287,14 +287,14 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
         </p>
       )}
 
-      <div className="relative max-h-[520px] overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900 p-4 font-mono text-xs leading-relaxed">
+      <div className="relative max-h-[520px] overflow-y-auto rounded-xl border border-border bg-surface p-4 font-mono text-xs leading-relaxed">
         {histLoading && mode === "history" && (
-          <div className="absolute inset-0 z-10 grid place-items-center bg-zinc-900/80">
+          <div className="absolute inset-0 z-10 grid place-items-center bg-surface/80">
             <Skeleton className="h-8 w-32" />
           </div>
         )}
         {visibleLines.length === 0 ? (
-          <p className="py-8 text-center text-zinc-500">
+          <p className="py-8 text-center text-muted">
             {sourceLines.length === 0
               ? mode === "live"
                 ? "Waiting for log output…"
@@ -304,13 +304,13 @@ export function LogsFeed({ serviceId }: { serviceId: string }) {
         ) : (
           visibleLines.map((line) => (
             <div key={line.id} className="flex gap-3 hover:bg-[#1c1c20]">
-              <span className="shrink-0 text-zinc-600">
+              <span className="shrink-0 text-subtle">
                 {new Date(line.ts * 1000).toLocaleTimeString()}
               </span>
               <span
                 className={cn(
                   "whitespace-pre-wrap break-all",
-                  line.stream === "stderr" ? "text-red-400" : "text-zinc-400",
+                  line.stream === "stderr" ? "text-red-400" : "text-muted",
                 )}
               >
                 {highlightText(line.text, activeFilter.trim())}

@@ -8,12 +8,13 @@ import {
   Server,
   ScrollText,
   LayoutTemplate,
-  Settings,
   ChevronLeft,
   X,
   Users,
   LayoutDashboard,
   HardDrive,
+  Shield,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VivoxLogo } from "./vivox-logo";
@@ -24,19 +25,20 @@ import { SidebarUserMenu } from "./sidebar-user-menu";
 
 const USER_NAV = [
   { href: "/dashboard", label: "My Servers", icon: HardDrive, match: ["/dashboard", "/services"] },
-  { href: "/settings", label: "Settings", icon: Settings, match: ["/settings"] },
 ];
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, match: ["/admin/dashboard"] },
-  { href: "/dashboard", label: "My Servers", icon: HardDrive, match: ["/dashboard", "/services"] },
-  { href: "/admin/services", label: "Services", icon: Boxes, match: ["/admin/services"] },
+  { href: "/admin/servers", label: "Servers", icon: Boxes, match: ["/admin/servers", "/admin/services"] },
   { href: "/admin/users", label: "Users", icon: Users, match: ["/admin/users", "/admin/customers"] },
   { href: "/admin/nodes", label: "Nodes", icon: Server, match: ["/admin/nodes"] },
   { href: "/admin/audit", label: "Audit", icon: ScrollText, match: ["/admin/audit"] },
   { href: "/deploy", label: "Templates", icon: LayoutTemplate, match: ["/deploy"] },
-  { href: "/settings", label: "Settings", icon: Settings, match: ["/settings"] },
 ];
+
+function isAdminArea(pathname: string) {
+  return pathname.startsWith("/admin") || pathname.startsWith("/deploy");
+}
 
 interface SidebarProps {
   collapsed: boolean;
@@ -60,7 +62,9 @@ export function Sidebar({
   const { data: session } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const isAdmin = role === "admin";
-  const NAV = isAdmin ? ADMIN_NAV : USER_NAV;
+  const inAdminArea = isAdminArea(pathname);
+  const NAV = isAdmin && inAdminArea ? ADMIN_NAV : USER_NAV;
+  const homeHref = isAdmin && inAdminArea ? "/admin/dashboard" : "/dashboard";
 
   const content = (
     <>
@@ -72,7 +76,7 @@ export function Sidebar({
         )}
       >
         <Link
-          href={isAdmin ? "/admin/dashboard" : "/dashboard"}
+          href={homeHref}
           className={cn(
             "flex items-center",
             isCollapsed ? "size-10 justify-center" : "min-w-0 gap-2.5",
@@ -138,6 +142,38 @@ export function Sidebar({
             </Link>
           );
         })}
+        {isAdmin && !inAdminArea && (
+          <Link
+            href="/admin/dashboard"
+            title={isCollapsed ? "Admin" : undefined}
+            onClick={mobile ? onMobileClose : undefined}
+            className={cn(
+              "group relative mt-2 flex items-center rounded-xl border border-vivox-500/25 bg-vivox-500/5 text-sm font-medium text-vivox-400 transition-colors hover:bg-vivox-500/10",
+              isCollapsed ? "mx-auto size-10 justify-center" : "h-10 gap-3 px-3",
+            )}
+          >
+            <span className={NAV_ICON_BOX}>
+              <Shield className="size-[18px]" strokeWidth={2} />
+            </span>
+            {!isCollapsed && <span className="truncate">Admin panel</span>}
+          </Link>
+        )}
+        {isAdmin && inAdminArea && (
+          <Link
+            href="/dashboard"
+            title={isCollapsed ? "User panel" : undefined}
+            onClick={mobile ? onMobileClose : undefined}
+            className={cn(
+              "group relative mt-2 flex items-center rounded-xl border border-border text-sm font-medium text-muted transition-colors hover:bg-surface-raised hover:text-foreground",
+              isCollapsed ? "mx-auto size-10 justify-center" : "h-10 gap-3 px-3",
+            )}
+          >
+            <span className={NAV_ICON_BOX}>
+              <ArrowLeft className="size-[18px]" strokeWidth={2} />
+            </span>
+            {!isCollapsed && <span className="truncate">User panel</span>}
+          </Link>
+        )}
       </nav>
 
       {/* Footer: notifications, theme, user, collapse */}

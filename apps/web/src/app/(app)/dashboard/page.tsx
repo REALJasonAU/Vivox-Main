@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useSpring, useTransform } from "framer-motion";
-import { Boxes, LayoutGrid, List, Play, Rocket, RotateCcw, Server, Square, X, User, Users, Share2 } from "lucide-react";
-import { servicesApi, adminApi } from "@/lib/api";
+import { Boxes, LayoutGrid, List, Play, RotateCcw, Server, Square, X } from "lucide-react";
+import { servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { Service, ServiceStatus, StatusPayload } from "@/lib/types";
@@ -14,10 +13,8 @@ import { Button } from "@/components/ui/button";
 import { ErrorBanner, Skeleton } from "@/components/ui/states";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/useToast";
-import { useSession } from "@/lib/auth-client";
 
 type ViewMode = "grid" | "list";
-type AdminScope = "mine" | "shared" | "others";
 const VIEW_KEY = "vivox-view";
 
 const containerVariants = {
@@ -98,23 +95,23 @@ function LiveStatsStrip({
   if (services.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/90 px-4 py-3 text-sm text-zinc-300 backdrop-blur-md">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface/90 px-3 py-2 text-sm text-foreground backdrop-blur-md">
       <span className="inline-flex items-center gap-1.5">
         <span className="size-2 rounded-full bg-emerald-500" aria-hidden />
         <span>
-          <strong className="font-semibold text-zinc-100">{counts.running}</strong> running
+          <strong className="font-semibold text-foreground">{counts.running}</strong> running
         </span>
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="size-2 rounded-full border border-amber-400 bg-amber-400/30 animate-pulse" aria-hidden />
         <span>
-          <strong className="font-semibold text-zinc-100">{counts.starting}</strong> starting
+          <strong className="font-semibold text-foreground">{counts.starting}</strong> starting
         </span>
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span className="size-2 rounded-sm border border-zinc-500 bg-zinc-700" aria-hidden />
+        <span className="size-2 rounded-sm border border-muted bg-surface-raised" aria-hidden />
         <span>
-          <strong className="font-semibold text-zinc-100">{counts.stopped}</strong> stopped
+          <strong className="font-semibold text-foreground">{counts.stopped}</strong> stopped
         </span>
       </span>
     </div>
@@ -127,41 +124,21 @@ function SummaryCard({ label, value, index }: { label: string; value: number; in
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.3, ease: [0.16, 1, 0.3, 1] as const }}
-      className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
+      className="rounded-xl border border-border bg-surface p-3"
     >
-      <p className="text-3xl font-semibold tracking-tight text-zinc-100">
+      <p className="text-3xl font-semibold tracking-tight text-foreground">
         <AnimatedNumber value={value} />
       </p>
-      <p className="mt-1 text-xs uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="mt-1 text-xs uppercase tracking-wider text-muted">{label}</p>
     </motion.div>
   );
 }
 
 export default function DashboardPage() {
-  const { data: session } = useSession();
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  const userId = session?.user?.id;
-  const isAdmin = role === "admin";
-
-  const { data: ownedData, loading: ownedLoading, error: ownedError } = useApi<Service[]>(
+  const { data: ownedData, loading, error: ownedError } = useApi<Service[]>(
     () => servicesApi.list(),
   );
-  const { data: allData, loading: allLoading } = useApi<Service[]>(
-    () => (isAdmin ? adminApi.services() : Promise.resolve([])),
-    [isAdmin],
-  );
-
-  const [adminScope, setAdminScope] = useState<AdminScope>("mine");
-  const services = useMemo(() => {
-    if (!isAdmin || adminScope === "mine") return ownedData ?? [];
-    const all = allData ?? [];
-    if (adminScope === "shared") {
-      return all.filter((s) => s.team_id === userId && s.owner_id !== userId);
-    }
-    return all.filter((s) => s.owner_id !== userId && s.team_id !== userId);
-  }, [isAdmin, adminScope, ownedData, allData, userId]);
-
-  const loading = isAdmin && adminScope !== "mine" ? allLoading : ownedLoading;
+  const services = ownedData ?? [];
   const error = ownedError;
   const statusMap = useLiveServiceStatuses(services);
   const [view, setView] = useState<ViewMode>("grid");
@@ -241,30 +218,20 @@ export default function DashboardPage() {
   const ramUsedMb = filteredServices
     .filter((s) => s.status === "RUNNING")
     .reduce((sum, s) => sum + s.resource_limits.memory_mb, 0);
-  const transient = filteredServices.filter((s) =>
-    ["PROVISIONING", "STARTING", "STOPPING"].includes(s.status),
-  ).length;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">My Servers</h1>
-          <p className="mt-1 text-sm text-muted">
-            {activeTag ? `${filteredServices.length} tagged · ` : ""}
-            {services.length} in view · {running} running
-            {transient > 0 && ` · ${transient} in transition`}
-          </p>
-        </div>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">My Servers</h1>
         <div className="flex items-center gap-2">
           {services.length > 0 && (
-            <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/50 p-0.5">
+            <div className="flex rounded-lg border border-border bg-background/50 p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
                 className={cn(
                   "rounded-md p-2 transition-colors",
-                  view === "grid" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300",
+                  view === "grid" ? "bg-surface-raised text-foreground" : "text-muted hover:text-foreground",
                 )}
                 aria-label="Grid view"
               >
@@ -275,7 +242,7 @@ export default function DashboardPage() {
                 onClick={() => setViewMode("list")}
                 className={cn(
                   "rounded-md p-2 transition-colors",
-                  view === "list" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300",
+                  view === "list" ? "bg-surface-raised text-foreground" : "text-muted hover:text-foreground",
                 )}
                 aria-label="List view"
               >
@@ -283,61 +250,8 @@ export default function DashboardPage() {
               </button>
             </div>
           )}
-          {isAdmin && (
-            <Link href="/deploy">
-              <Button actionType="deploy">
-                <Rocket className="size-4" />
-                Deploy service
-              </Button>
-            </Link>
-          )}
         </div>
       </div>
-
-      {isAdmin && (
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { id: "mine" as const, label: "My servers", icon: User, count: (ownedData ?? []).length },
-              {
-                id: "shared" as const,
-                label: "Shared with me",
-                icon: Share2,
-                count: (allData ?? []).filter((s) => s.team_id === userId && s.owner_id !== userId).length,
-              },
-              {
-                id: "others" as const,
-                label: "Other users",
-                icon: Users,
-                count: (allData ?? []).filter((s) => s.owner_id !== userId && s.team_id !== userId).length,
-              },
-            ] as const
-          ).map(({ id, label, icon: Icon, count }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setAdminScope(id)}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm transition-all duration-200",
-                adminScope === id
-                  ? "border-vivox-500/40 bg-vivox-500/10 text-foreground"
-                  : "border-border bg-surface text-muted hover:border-border-focus hover:text-foreground",
-              )}
-            >
-              <Icon className={cn("size-4", adminScope === id && "text-vivox-500")} />
-              {label}
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-xs font-mono",
-                  adminScope === id ? "bg-vivox-500/15 text-vivox-500" : "bg-surface-raised text-subtle",
-                )}
-              >
-                {count}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
 
       {allTags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -351,7 +265,7 @@ export default function DashboardPage() {
                 "rounded-full border px-2.5 py-1 text-xs transition-colors",
                 activeTag === tag
                   ? "border-vivox-500/50 bg-vivox-500/10 text-vivox-400"
-                  : "border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300",
+                  : "border-border-focus text-muted hover:border-border-focus hover:text-foreground",
               )}
             >
               {tag}
@@ -363,19 +277,19 @@ export default function DashboardPage() {
       <LiveStatsStrip services={filteredServices} statusMap={statusMap} />
 
       {!loading && services.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           <SummaryCard label="Running" value={running} index={0} />
           <SummaryCard label="Stopped" value={stopped} index={1} />
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.14, duration: 0.3, ease: [0.16, 1, 0.3, 1] as const }}
-            className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
+            className="rounded-xl border border-border bg-surface p-3"
           >
-            <p className="text-3xl font-semibold tracking-tight text-zinc-100">
+            <p className="text-3xl font-semibold tracking-tight text-foreground">
               <AnimatedNumber value={ramUsedMb} /> MB
             </p>
-            <p className="mt-1 text-xs uppercase tracking-wider text-zinc-500">RAM used</p>
+            <p className="mt-1 text-xs uppercase tracking-wider text-muted">RAM used</p>
           </motion.div>
         </div>
       )}
@@ -403,29 +317,16 @@ export default function DashboardPage() {
           </Button>
         </div>
       ) : services.length === 0 ? (
-        <div className="flex flex-col items-center gap-5 rounded-2xl border border-dashed border-border py-20 text-center">
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-border py-14 text-center">
           <div className="grid size-16 place-items-center rounded-2xl bg-surface-raised">
             <Server className="size-8 text-muted" />
           </div>
           <div>
             <h2 className="text-lg font-medium text-foreground">No servers here</h2>
             <p className="mt-1 text-sm text-muted">
-              {isAdmin && adminScope === "mine"
-                ? "Deploy your first server to get started."
-                : isAdmin && adminScope === "shared"
-                  ? "No servers have been shared with you yet."
-                  : isAdmin && adminScope === "others"
-                    ? "No other users' servers to show."
-                    : "Your servers will appear here once they've been set up. Contact support to get started."}
+              Your servers will appear here once they&apos;ve been set up. Contact support to get started.
             </p>
           </div>
-          {isAdmin && adminScope === "mine" && (
-            <Link href="/deploy">
-              <Button size="lg" actionType="deploy">
-                <Rocket className="size-4" /> Deploy a server
-              </Button>
-            </Link>
-          )}
         </div>
       ) : view === "list" ? (
         <div className="flex flex-col gap-2">
@@ -470,11 +371,11 @@ export default function DashboardPage() {
             transition={{ type: "spring", stiffness: 380, damping: 28 }}
             className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
           >
-            <div className="flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900/95 px-4 py-3 shadow-2xl backdrop-blur-md">
-              <span className="mr-1 text-sm text-zinc-400">
+            <div className="flex items-center gap-2 rounded-2xl border border-border-focus bg-surface/95 px-4 py-3 shadow-2xl backdrop-blur-md">
+              <span className="mr-1 text-sm text-muted">
                 {selected.size} service{selected.size > 1 ? "s" : ""} selected
               </span>
-              <div className="mx-2 h-4 w-px bg-zinc-700" />
+              <div className="mx-2 h-4 w-px bg-border" />
               <Button size="sm" variant="secondary" onClick={selectAll}>
                 Select all
               </Button>
@@ -505,7 +406,7 @@ export default function DashboardPage() {
               >
                 <RotateCcw className="size-3.5" /> Restart
               </Button>
-              <div className="mx-2 h-4 w-px bg-zinc-700" />
+              <div className="mx-2 h-4 w-px bg-border" />
               <Button size="sm" variant="ghost" onClick={clearSelection}>
                 <X className="size-3.5" /> Cancel
               </Button>

@@ -25,8 +25,8 @@ type Config struct {
 	// RedisDB selects the Redis logical database.
 	RedisDB int
 
-	// AuthSecret is the shared HMAC secret used to verify Better Auth JWTs.
-	AuthSecret string
+	// AuthJWKSURL is the Better Auth JWKS endpoint used to verify EdDSA JWTs.
+	AuthJWKSURL string
 	// AuthDevMode, when true, allows the X-Dev-User / X-Dev-Role headers to
 	// stand in for a verified session. Never enable in production.
 	AuthDevMode bool
@@ -52,7 +52,7 @@ func Load() Config {
 		RedisAddr:       env("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:   env("REDIS_PASSWORD", ""),
 		RedisDB:         envInt("REDIS_DB", 0),
-		AuthSecret:      env("BETTER_AUTH_SECRET", "dev-insecure-secret-change-me"),
+		AuthJWKSURL:     env("BETTER_AUTH_JWKS_URL", "http://web:3000/api/auth/jwks"),
 		AuthDevMode:     envBool("AUTH_DEV_MODE", true),
 		CertDir:         env("GRPC_CERT_DIR", "infra/dev/certs"),
 		GRPCTLSDisabled: envBool("GRPC_TLS_DISABLED", false),

@@ -10,14 +10,17 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const inputClass =
-  "rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 font-mono text-sm text-zinc-100 outline-none transition-all duration-200 focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700";
+  "rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus focus:ring-1 focus:ring-border-focus";
 
 export function EnvTab({
   service,
   onChanged,
+  defaultStartupCmd = "Image entrypoint (automatic)",
 }: {
   service: Service;
   onChanged: (s: Service) => void;
+  /** Template / image default startup command for comparison. */
+  defaultStartupCmd?: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initial = Object.entries(service.config.environment ?? {}).map(([key, value]) => ({
@@ -30,7 +33,7 @@ export function EnvTab({
   const [bulkText, setBulkText] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [cmdOpen, setCmdOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(true);
   const [startupCmd, setStartupCmd] = useState(service.config.startup_cmd ?? "");
   const [dragOver, setDragOver] = useState(false);
 
@@ -70,7 +73,9 @@ export function EnvTab({
     );
     try {
       const updated = await servicesApi.updateEnv(service.id, env);
-      const withCmd = await servicesApi.updateConfig(service.id, { startup_cmd: startupCmd });
+      const withCmd = await servicesApi.updateConfig(service.id, {
+        startup_cmd: startupCmd.trim() || undefined,
+      });
       onChanged(withCmd ?? updated);
       toast("Environment saved", "success");
       setMsg("Restart the service to apply changes.");
@@ -86,8 +91,8 @@ export function EnvTab({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border bg-zinc-900 p-5 transition-colors",
-        dragOver ? "border-vivox-500/50" : "border-zinc-800",
+        "flex flex-col gap-3 rounded-xl border bg-surface p-4 transition-colors",
+        dragOver ? "border-vivox-500/50" : "border-border",
       )}
       onDragOver={(e) => {
         e.preventDefault();
@@ -101,6 +106,34 @@ export function EnvTab({
         void onFileSelect(file);
       }}
     >
+      <div className="rounded-lg border border-border">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-3 py-2 text-sm text-foreground"
+          onClick={() => setCmdOpen((o) => !o)}
+        >
+          <span>Startup command</span>
+          {cmdOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </button>
+        {cmdOpen && (
+          <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
+            <p className="text-xs text-muted">
+              Default:{" "}
+              <span className="font-mono text-muted">{defaultStartupCmd}</span>
+            </p>
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              This server&apos;s command
+              <input
+                value={startupCmd}
+                onChange={(e) => setStartupCmd(e.target.value)}
+                placeholder="Leave empty to use the default"
+                className={cn(inputClass, "h-9 w-full")}
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <input
           ref={fileInputRef}
@@ -110,7 +143,7 @@ export function EnvTab({
           onChange={(e) => void onFileSelect(e.target.files?.[0])}
         />
         <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
-          <Upload className="size-3.5" /> Import .env file
+          <Upload className="size-3.5" /> Import .env
         </Button>
         <Button variant="ghost" size="sm" onClick={() => setBulkOpen((o) => !o)}>
           Bulk paste
@@ -119,13 +152,13 @@ export function EnvTab({
       </div>
 
       {bulkOpen && (
-        <div className="flex flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-background/50 p-3">
           <textarea
             value={bulkText}
             onChange={(e) => setBulkText(e.target.value)}
             placeholder={"KEY=value\nANOTHER=value"}
-            rows={5}
-            className={cn(inputClass, "min-h-[100px] w-full resize-y")}
+            rows={4}
+            className={cn(inputClass, "min-h-[80px] w-full resize-y")}
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setBulkOpen(false)}>
@@ -152,14 +185,14 @@ export function EnvTab({
               value={row.key}
               onChange={(e) => update(i, "key", e.target.value)}
               placeholder="KEY"
-              className={cn(inputClass, "h-10 w-1/3 uppercase")}
+              className={cn(inputClass, "h-9 w-1/3 uppercase")}
             />
             <input
               type={masked.has(i) ? "password" : "text"}
               value={row.value}
               onChange={(e) => update(i, "value", e.target.value)}
               placeholder="value"
-              className={cn(inputClass, "h-10 flex-1")}
+              className={cn(inputClass, "h-9 flex-1")}
             />
             <Button
               type="button"
@@ -175,30 +208,6 @@ export function EnvTab({
         ))}
       </div>
 
-      <div className="rounded-lg border border-zinc-800">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between px-3 py-2.5 text-sm text-zinc-300"
-          onClick={() => setCmdOpen((o) => !o)}
-        >
-          <span>Startup command</span>
-          {cmdOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-        </button>
-        {cmdOpen && (
-          <div className="border-t border-zinc-800 px-3 pb-3 pt-2">
-            <label className="flex flex-col gap-1.5 text-xs text-zinc-500">
-              Override startup command
-              <input
-                value={startupCmd}
-                onChange={(e) => setStartupCmd(e.target.value)}
-                placeholder="./start.sh --port 25565"
-                className={cn(inputClass, "h-10 w-full font-mono")}
-              />
-            </label>
-          </div>
-        )}
-      </div>
-
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => setRows((p) => [...p, { key: "", value: "" }])}>
           + Add variable
@@ -207,7 +216,7 @@ export function EnvTab({
           <Save className="size-3.5" /> Save
         </Button>
       </div>
-      {msg && <p className="text-xs text-zinc-400">{msg}</p>}
+      {msg && <p className="text-xs text-muted">{msg}</p>}
     </div>
   );
 }

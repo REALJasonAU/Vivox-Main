@@ -20,14 +20,20 @@ configurable:
     label: Server RAM
     default: "2G"
     env: MEMORY
+    description: "Java heap size passed to the Minecraft server."
+    options: "1G, 2G, 4G, 8G"
   - key: version
     label: Minecraft Version
     default: "LATEST"
     env: VERSION
+    description: "Game version tag or LATEST."
+    options: "LATEST, 1.21.1, 1.20.4"
   - key: difficulty
     label: Difficulty
     default: "normal"
     env: DIFFICULTY
+    description: "World difficulty."
+    options: "peaceful, easy, normal, hard"
 
 resources:
   memory_mb: 2048

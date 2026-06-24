@@ -9,7 +9,7 @@ import { EmptyState, ErrorBanner, Skeleton } from "@/components/ui/states";
 import { formatRelativeTime } from "@/lib/utils";
 
 const filterInputClass =
-  "input-field w-full min-w-[200px] rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700";
+  "input-field w-full min-w-[200px] rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground outline-none focus:border-border-focus focus:ring-1 focus:ring-border-focus";
 
 export default function AuditPage() {
   const [actor, setActor] = useState("");
@@ -27,14 +27,11 @@ export default function AuditPage() {
   const events = data ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Audit Logs
         </h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          Platform actions across users, services, and nodes.
-        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -66,27 +63,27 @@ export default function AuditPage() {
           description="Actions across users, services, and nodes will appear here as they occur."
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-800 bg-[#1f1f23] text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <tr className="border-b border-border bg-[#1f1f23] text-xs font-semibold uppercase tracking-wider text-muted">
                 <th className="p-4 font-medium">Time</th>
                 <th className="p-4 font-medium">Actor</th>
                 <th className="p-4 font-medium">Action</th>
                 <th className="p-4 font-medium">Target</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800">
+            <tbody className="divide-y divide-border">
               {events.map((e) => (
                 <tr key={e.id} className="transition-colors duration-200 hover:bg-[#1c1c20]">
-                  <td className="p-4 font-mono text-xs text-zinc-400">
+                  <td className="p-4 font-mono text-xs text-muted">
                     <span title={new Date(e.created_at).toLocaleString()}>
                       {formatRelativeTime(e.created_at)}
                     </span>
                   </td>
-                  <td className="p-4 font-mono text-xs text-zinc-100">{e.actor_id}</td>
-                  <td className="p-4 text-zinc-100">{e.action}</td>
-                  <td className="p-4 font-mono text-xs text-zinc-400">
+                  <td className="p-4 font-mono text-xs text-foreground">{e.actor_id}</td>
+                  <td className="p-4 text-foreground">{e.action}</td>
+                  <td className="p-4 font-mono text-xs text-muted">
                     {e.target_type}:{e.target_id}
                   </td>
                 </tr>

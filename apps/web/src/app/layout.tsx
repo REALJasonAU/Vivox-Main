@@ -32,7 +32,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={`${theme} ${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+      <body className="min-h-screen bg-background text-foreground antialiased">
         <Providers initialTheme={theme}>{children}</Providers>
       </body>
     </html>

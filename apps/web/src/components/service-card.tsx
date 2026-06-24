@@ -20,11 +20,11 @@ const TYPE_META: Record<ServiceType, { icon: typeof Container; label: string }> 
 function MetricBar({ label, value, percent }: { label: string; value: string; percent: number }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-zinc-500">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
         <span>{label}</span>
         <span className="font-mono normal-case tracking-normal">{value}</span>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-zinc-800">
+      <div className="h-1 overflow-hidden rounded-full bg-surface-raised">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, percent)}%` }}
@@ -111,7 +111,7 @@ export function ServiceCard({
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
       className={cn(
-        "group relative flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5",
+        "group relative flex flex-col gap-4 rounded-xl border border-border bg-surface p-5",
         locked && "opacity-90",
         selectionMode && !selected && "opacity-60",
       )}
@@ -132,7 +132,7 @@ export function ServiceCard({
         >
           <motion.div
             animate={selected ? { backgroundColor: "#e5181b", borderColor: "#e5181b" } : {}}
-            className="flex size-5 items-center justify-center rounded-full border-2 border-zinc-600 bg-zinc-800"
+            className="flex size-5 items-center justify-center rounded-full border-2 border-border-focus bg-surface-raised"
           >
             {selected && (
               <motion.div
@@ -152,24 +152,24 @@ export function ServiceCard({
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-xl border border-zinc-800 bg-zinc-800">
+          <span className="grid size-10 place-items-center rounded-xl border border-border bg-surface-raised">
             <Icon className="size-5 text-vivox-400" />
           </span>
           <div className="min-w-0">
-            <h3 className="truncate font-medium tracking-tight text-zinc-100">{service.name}</h3>
-            <p className="text-xs uppercase tracking-wider text-zinc-500">{meta.label}</p>
+            <h3 className="truncate font-medium tracking-tight text-foreground">{service.name}</h3>
+            <p className="text-xs uppercase tracking-wider text-muted">{meta.label}</p>
             {service.tags && service.tags.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {service.tags.slice(0, 3).map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400"
+                    className="rounded-full border border-border-focus bg-surface-raised px-2 py-0.5 text-[10px] text-muted"
                   >
                     {tag}
                   </span>
                 ))}
                 {service.tags.length > 3 && (
-                  <span className="text-[10px] text-zinc-600">+{service.tags.length - 3}</span>
+                  <span className="text-[10px] text-subtle">+{service.tags.length - 3}</span>
                 )}
               </div>
             )}
@@ -183,10 +183,10 @@ export function ServiceCard({
         <MetricBar label="CPU" value={cpuValue} percent={cpuPct} />
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-zinc-800 pt-3 text-xs text-zinc-500">
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted">
         <div className="flex min-w-0 items-center gap-2">
           {service.config.image && (
-            <span className="truncate font-mono text-zinc-500">{service.config.image}</span>
+            <span className="truncate font-mono text-muted">{service.config.image}</span>
           )}
           {status === "RUNNING" && (
             <span className="inline-flex shrink-0 items-center gap-1 text-emerald-500/80">
@@ -195,7 +195,7 @@ export function ServiceCard({
             </span>
           )}
         </div>
-        <ChevronRight className="ml-auto size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-zinc-100" />
+        <ChevronRight className="ml-auto size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-foreground" />
       </div>
     </motion.div>
   );

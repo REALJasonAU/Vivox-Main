@@ -92,7 +92,7 @@ export function ServiceRow({
         >
           <motion.div
             animate={selected ? { backgroundColor: "#e5181b", borderColor: "#e5181b" } : {}}
-            className="flex size-5 items-center justify-center rounded-full border-2 border-zinc-600 bg-zinc-800"
+            className="flex size-5 items-center justify-center rounded-full border-2 border-border-focus bg-surface-raised"
           >
             {selected && (
               <motion.div
@@ -111,27 +111,27 @@ export function ServiceRow({
         style={{ background: `rgb(var(--status-${meta.color}))` }}
         aria-hidden
       />
-      <span className="min-w-0 flex-1 truncate font-medium text-zinc-100">{service.name}</span>
+      <span className="min-w-0 flex-1 truncate font-medium text-foreground">{service.name}</span>
       {service.tags && service.tags.length > 0 && (
         <span className="hidden gap-1 md:flex">
           {service.tags.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="rounded-full border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500"
+              className="rounded-full border border-border-focus bg-surface-raised px-1.5 py-0.5 text-[10px] text-muted"
             >
               {tag}
             </span>
           ))}
         </span>
       )}
-      <span className="hidden w-24 shrink-0 text-xs uppercase tracking-wider text-zinc-500 sm:block">
+      <span className="hidden w-24 shrink-0 text-xs uppercase tracking-wider text-muted sm:block">
         {meta.label}
       </span>
-      <span className="hidden w-20 shrink-0 text-xs text-zinc-500 md:block">{uptime}</span>
-      <span className="hidden w-16 shrink-0 font-mono text-xs text-zinc-400 lg:block">{cpuValue}</span>
-      <span className="hidden w-20 shrink-0 font-mono text-xs text-zinc-400 lg:block">{memValue}</span>
+      <span className="hidden w-20 shrink-0 text-xs text-muted md:block">{uptime}</span>
+      <span className="hidden w-16 shrink-0 font-mono text-xs text-muted lg:block">{cpuValue}</span>
+      <span className="hidden w-20 shrink-0 font-mono text-xs text-muted lg:block">{memValue}</span>
       {!selectionMode && (
-        <ChevronRight className="size-4 shrink-0 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-300" />
+        <ChevronRight className="size-4 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
       )}
   </>
   );
@@ -146,7 +146,7 @@ export function ServiceRow({
         onPointerLeave={cancelLongPress}
         onClick={onToggle}
         className={cn(
-          "group relative flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 transition-all duration-200",
+          "group relative flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 transition-all duration-200",
           !selected && "opacity-60",
         )}
       >
@@ -161,7 +161,7 @@ export function ServiceRow({
       onPointerDown={startLongPress}
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
-      className="group flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 transition-all duration-200 hover:border-zinc-700"
+      className="group flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 transition-all duration-200 hover:border-border-focus"
     >
       {inner}
     </Link>

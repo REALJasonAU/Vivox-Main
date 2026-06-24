@@ -9,11 +9,39 @@ export const DEPLOY_TEMPLATES: DeployTemplate[] = [
     description: "itzg/minecraft-server with configurable RAM and EULA.",
     defaultImage: "itzg/minecraft-server:latest",
     defaultPorts: ["25565:25565"],
+    defaultMemoryMb: 2048,
+    defaultCpuThreads: 1,
+    defaultDiskGb: 10,
     env: [
-      { key: "EULA", label: "Accept EULA", value: "TRUE", required: true },
-      { key: "MEMORY", label: "Memory", value: "2G" },
-      { key: "VERSION", label: "Version", value: "LATEST" },
-      { key: "TYPE", label: "Server Type", value: "VANILLA" },
+      {
+        key: "EULA",
+        label: "Accept EULA",
+        value: "TRUE",
+        required: true,
+        description: "Must be TRUE to run the official Minecraft server image.",
+        options: "TRUE",
+      },
+      {
+        key: "MEMORY",
+        label: "JVM heap",
+        value: "2G",
+        description: "Java heap passed to the server process.",
+        options: "1G, 2G, 4G, 8G",
+      },
+      {
+        key: "VERSION",
+        label: "Minecraft version",
+        value: "LATEST",
+        description: "Release tag or LATEST for newest.",
+        options: "LATEST, 1.21.1, 1.20.4",
+      },
+      {
+        key: "TYPE",
+        label: "Server type",
+        value: "VANILLA",
+        description: "Server flavour / mod loader.",
+        options: "VANILLA, PAPER, FORGE, FABRIC",
+      },
     ],
   },
   {
@@ -22,7 +50,10 @@ export const DEPLOY_TEMPLATES: DeployTemplate[] = [
     type: "docker",
     description: "Run any public image with custom ports and environment.",
     defaultImage: "",
-    defaultPorts: ["8080:80"],
+    defaultPorts: [],
+    defaultMemoryMb: 512,
+    defaultCpuThreads: 1,
+    defaultDiskGb: 5,
     env: [],
   },
   {
@@ -31,16 +62,12 @@ export const DEPLOY_TEMPLATES: DeployTemplate[] = [
     type: "static",
     description: "nginx serving uploaded static files.",
     defaultImage: "nginx:alpine",
-    defaultPorts: ["80:80"],
+    defaultPorts: ["8080:80/tcp"],
+    defaultMemoryMb: 256,
+    defaultCpuThreads: 1,
+    defaultDiskGb: 2,
     env: [],
   },
-];
-
-export const REGIONS = [
-  { id: "au-1", label: "Australia (Sydney)" },
-  { id: "us-east-1", label: "US East (Virginia)" },
-  { id: "eu-west-1", label: "EU West (Ireland)" },
-  { id: "ap-south-1", label: "Asia Pacific (Singapore)" },
 ];
 
 export function getTemplate(id: string): DeployTemplate | undefined {

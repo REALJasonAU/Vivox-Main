@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -101,21 +102,38 @@ func (m *Manager) StartService(ctx context.Context, t *gen.StartServiceTask) err
 		return fmt.Errorf("pull image %q: %w", t.GetContainerImage(), err)
 	}
 
-	// Reconcile: drop any container left over for this service.
 	if err := m.removeService(ctx, serviceID, 5); err != nil {
 		return fmt.Errorf("reconcile existing container: %w", err)
 	}
 
+	containerEnv, runtime := peelRuntimeEnv(t.GetEnvVars())
+
 	cfg := &container.Config{
 		Image: t.GetContainerImage(),
-		Env:   envSlice(t.GetEnvVars()),
+		Env:   envSlice(containerEnv),
 		Labels: map[string]string{
 			labelManagedBy: managedByValue,
 			labelService:   serviceID,
 		},
 	}
+	if runtime.StartupCmd != "" {
+		cfg.Cmd = []string{"/bin/sh", "-c", runtime.StartupCmd}
+	}
+
 	hostCfg := &container.HostConfig{
 		Resources: container.Resources{Memory: t.GetMemoryLimitBytes()},
+	}
+	if runtime.CPUShares > 0 {
+		threads := runtime.CPUShares / 1024
+		if threads < 1 {
+			threads = 1
+		}
+		hostCfg.Resources.NanoCPUs = threads * 1_000_000_000
+	}
+	if runtime.DiskGB > 0 {
+		hostCfg.StorageOpt = map[string]string{
+			"size": fmt.Sprintf("%dG", runtime.DiskGB),
+		}
 	}
 
 	if err := applyNetworking(cfg, hostCfg, t.GetPortBindings()); err != nil {
@@ -357,6 +375,41 @@ func envSlice(env map[string]string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+type runtimeEnv struct {
+	CPUShares  int64
+	DiskGB     int64
+	StartupCmd string
+}
+
+const (
+	envVivoxCPU     = "VIVOX_CPU_SHARES"
+	envVivoxDisk    = "VIVOX_DISK_GB"
+	envVivoxStartup = "VIVOX_STARTUP_CMD"
+)
+
+// peelRuntimeEnv strips Vivox control-plane env vars consumed by the agent
+// before passing the remainder to the container.
+func peelRuntimeEnv(env map[string]string) (map[string]string, runtimeEnv) {
+	if len(env) == 0 {
+		return nil, runtimeEnv{}
+	}
+	out := make(map[string]string, len(env))
+	var rt runtimeEnv
+	for k, v := range env {
+		switch k {
+		case envVivoxCPU:
+			rt.CPUShares, _ = strconv.ParseInt(v, 10, 64)
+		case envVivoxDisk:
+			rt.DiskGB, _ = strconv.ParseInt(v, 10, 64)
+		case envVivoxStartup:
+			rt.StartupCmd = v
+		default:
+			out[k] = v
+		}
+	}
+	return out, rt
 }
 
 // mergeEnv overlays updates onto an existing "KEY=VALUE" env slice.

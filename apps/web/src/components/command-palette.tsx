@@ -94,7 +94,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
           transition={{ duration: 0.15 }}
         >
           <div
-            className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => onOpenChange(false)}
             aria-hidden
           />
@@ -113,20 +113,20 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                   placeholder="Search servers or run a command…"
                   className="h-14 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
                 />
-                <kbd className="hidden rounded-md border border-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 sm:block">
+                <kbd className="hidden rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted sm:block">
                   ESC
                 </kbd>
               </div>
 
               <Command.List className="max-h-[min(60vh,420px)] overflow-y-auto p-2">
-                <Command.Empty className="px-3 py-10 text-center text-sm text-zinc-500">
+                <Command.Empty className="px-3 py-10 text-center text-sm text-muted">
                   No results found.
                 </Command.Empty>
 
                 {contextServiceId && (
                   <Command.Group
                     heading="Service actions"
-                    className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-zinc-500 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                    className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                   >
                     <PaletteItem
                       icon={<Play className="size-4" />}
@@ -148,7 +148,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
 
                 <Command.Group
                   heading="Navigate"
-                  className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-zinc-500 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                  className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                 >
                   <PaletteItem
                     icon={<LayoutDashboard className="size-4" />}
@@ -163,8 +163,8 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                   />
                   <PaletteItem
                     icon={<Boxes className="size-4" />}
-                    label="Admin · Services"
-                    onSelect={() => run(() => router.push("/admin/services"))}
+                    label="Admin · Servers"
+                    onSelect={() => run(() => router.push("/admin/servers"))}
                   />
                   <PaletteItem
                     icon={<Rocket className="size-4" />}
@@ -192,7 +192,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                 {services.length > 0 && (
                   <Command.Group
                     heading="Services"
-                    className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-zinc-500 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                    className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                   >
                     {services.map((svc) => (
                       <PaletteItem
@@ -203,7 +203,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                         meta={
                           <span className="flex flex-col items-end gap-0.5">
                             {(svc.tags ?? []).length > 0 && (
-                              <span className="text-[10px] text-zinc-500">
+                              <span className="text-[10px] text-muted">
                                 {(svc.tags ?? []).slice(0, 3).join(" · ")}
                               </span>
                             )}
@@ -223,7 +223,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                 )}
               </Command.List>
 
-              <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-2.5 text-[11px] text-zinc-500">
+              <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-[11px] text-muted">
                 <span className="flex items-center gap-1.5">
                   <CornerDownLeft className="size-3" /> to select
                 </span>
@@ -256,13 +256,13 @@ function PaletteItem({
     <Command.Item
       value={value ?? label}
       onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-400 transition-all duration-200 data-[selected=true]:bg-[#1f1f23] data-[selected=true]:text-zinc-100"
+      className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted transition-all duration-200 data-[selected=true]:bg-[#1f1f23] data-[selected=true]:text-foreground"
     >
-      <span className="text-zinc-500">{icon}</span>
+      <span className="text-muted">{icon}</span>
       <span className="flex-1">{label}</span>
       {meta}
       {shortcut && (
-        <kbd className="font-mono text-[10px] tracking-widest text-zinc-500">{shortcut}</kbd>
+        <kbd className="font-mono text-[10px] tracking-widest text-muted">{shortcut}</kbd>
       )}
     </Command.Item>
   );

@@ -70,8 +70,8 @@ export function MetricsChart({ serviceId }: { serviceId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wider text-zinc-500">Performance</span>
-        <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-950/50 p-0.5">
+        <span className="text-xs uppercase tracking-wider text-muted">Performance</span>
+        <div className="flex gap-1 rounded-lg border border-border bg-background/50 p-0.5">
           {RANGES.map((r) => (
             <motion.button
               key={r}
@@ -81,8 +81,8 @@ export function MetricsChart({ serviceId }: { serviceId: string }) {
               className={cn(
                 "rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150",
                 range === r
-                  ? "bg-zinc-800 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-300",
+                  ? "bg-surface-raised text-foreground"
+                  : "text-muted hover:text-foreground",
               )}
             >
               {r === "live" ? (
@@ -136,13 +136,13 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+    <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-2 flex items-center justify-between">
-        <span className="flex items-center gap-2 text-sm uppercase tracking-wider text-zinc-500">
+        <span className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted">
           <span className="text-vivox-400">{icon}</span>
           {title}
         </span>
-        <span className="font-mono text-lg font-medium tracking-tight tabular-nums text-zinc-100">
+        <span className="font-mono text-lg font-medium tracking-tight tabular-nums text-foreground">
           {value}
         </span>
       </div>
@@ -166,7 +166,7 @@ function Chart({
 }) {
   if (data.length === 0) {
     return (
-      <div className="grid h-full place-items-center text-xs text-zinc-500">
+      <div className="grid h-full place-items-center text-xs text-muted">
         Waiting for metrics…
       </div>
     );

@@ -78,8 +78,8 @@ export function NotifBell({ compact = false }: { compact?: boolean }) {
               compact ? "bottom-full left-0 mb-2" : "right-0 top-full mt-2",
             )}
           >
-            <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5">
-              <span className="text-sm font-medium text-zinc-100">Activity</span>
+            <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+              <span className="text-sm font-medium text-foreground">Activity</span>
               {notifs.length > 0 && (
                 <button
                   type="button"
@@ -93,17 +93,17 @@ export function NotifBell({ compact = false }: { compact?: boolean }) {
 
             <div className="max-h-80 overflow-y-auto">
               {shown.length === 0 ? (
-                <p className="px-3 py-6 text-center text-sm text-zinc-500">No notifications yet</p>
+                <p className="px-3 py-6 text-center text-sm text-muted">No notifications yet</p>
               ) : (
-                <ul className="divide-y divide-zinc-800">
+                <ul className="divide-y divide-border">
                   {shown.map((n) => (
                     <li key={n.id}>
                       <Link
                         href={`/services/${n.serviceId}`}
                         onClick={() => setOpen(false)}
                         className={cn(
-                          "flex items-start gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800/50",
-                          !n.read && "bg-zinc-800/30",
+                          "flex items-start gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-surface-raised/50",
+                          !n.read && "bg-surface-raised/30",
                           isAlertNotif(n.kind) && !n.read && "bg-amber-500/5",
                         )}
                       >
@@ -112,12 +112,12 @@ export function NotifBell({ compact = false }: { compact?: boolean }) {
                           <span
                             className={cn(
                               "block",
-                              isAlertNotif(n.kind) ? "text-amber-300" : "text-zinc-200",
+                              isAlertNotif(n.kind) ? "text-amber-300" : "text-foreground",
                             )}
                           >
                             {notifLabel(n.kind, n.serviceName, n.meta)}
                           </span>
-                          <span className="text-xs text-zinc-500">
+                          <span className="text-xs text-muted">
                             {formatRelativeTime(new Date(n.ts))}
                           </span>
                         </span>
@@ -127,7 +127,7 @@ export function NotifBell({ compact = false }: { compact?: boolean }) {
                 </ul>
               )}
               {more > 0 && (
-                <p className="border-t border-zinc-800 px-3 py-2 text-center text-xs text-zinc-500">
+                <p className="border-t border-border px-3 py-2 text-center text-xs text-muted">
                   {more} more event{more === 1 ? "" : "s"}…
                 </p>
               )}

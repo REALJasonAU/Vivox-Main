@@ -26,10 +26,19 @@ export interface ResourceLimits {
 export interface ServiceConfig {
   image?: string;
   ports?: string[];
+  port_mappings?: PortMapping[];
   environment?: Record<string, string>;
   startup_cmd?: string;
   asset_url?: string;
   health_check?: HealthCheck;
+}
+
+export interface PortMapping {
+  host_ip?: string;
+  host_port: number;
+  container_port: number;
+  proto?: string;
+  alias?: string;
 }
 
 export interface HealthCheck {
@@ -228,6 +237,8 @@ export interface ApiConfigurableField {
   label: string;
   default: string;
   env: string;
+  description?: string;
+  options?: string;
 }
 
 export interface ApiTemplateResources {
@@ -246,6 +257,7 @@ export interface ApiTemplate {
   env?: Record<string, string>;
   configurable: ApiConfigurableField[];
   resources: ApiTemplateResources;
+  startup_cmd?: string;
 }
 
 /* ----- Deploy templates (plan section 9) ----- */
@@ -256,15 +268,27 @@ export interface DeployTemplate {
   type: ServiceType;
   description: string;
   defaultImage: string;
-  /** Editable env presented in the wizard. */
-  env: { key: string; label: string; value: string; required?: boolean }[];
+  /** Editable env presented in the wizard (keys are container env var names). */
+  env: {
+    key: string;
+    label: string;
+    value: string;
+    required?: boolean;
+    description?: string;
+    options?: string;
+  }[];
   defaultPorts: string[];
+  defaultStartupCmd?: string;
+  defaultMemoryMb?: number;
+  defaultCpuThreads?: number;
+  defaultDiskGb?: number;
 }
 
 export interface CreateServiceInput {
   name: string;
   type: ServiceType;
-  region: string;
+  region?: string;
+  node_id?: string;
   config: ServiceConfig;
   resource_limits: ResourceLimits;
   owner_id?: string;

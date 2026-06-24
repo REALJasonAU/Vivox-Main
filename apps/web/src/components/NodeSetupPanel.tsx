@@ -133,20 +133,20 @@ export function NodeSetupPanel({ node, token, onClose }: Props) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ type: "spring", stiffness: 380, damping: 28 }}
-          className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl"
+          className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-start justify-between gap-3 border-b border-zinc-800 px-5 py-4">
+          <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
             <div>
-              <h2 className="text-lg font-semibold text-zinc-100">Agent Setup</h2>
-              <p className="mt-0.5 text-sm text-zinc-400">
-                Node: <span className="font-mono text-zinc-200">{node.name}</span>
+              <h2 className="text-lg font-semibold text-foreground">Agent Setup</h2>
+              <p className="mt-0.5 text-sm text-muted">
+                Node: <span className="font-mono text-foreground">{node.name}</span>
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+              className="rounded-lg p-1.5 text-muted hover:bg-surface-raised hover:text-foreground"
               aria-label="Close"
             >
               <X className="size-5" />
@@ -161,17 +161,17 @@ export function NodeSetupPanel({ node, token, onClose }: Props) {
           </div>
 
           <div className="space-y-3 px-5 py-4">
-            <label className="flex flex-col gap-1.5 text-xs text-zinc-500">
+            <label className="flex flex-col gap-1.5 text-xs text-muted">
               Control plane gRPC address
               <input
                 value={apiHost}
                 onChange={(e) => setApiHost(e.target.value)}
-                className="h-9 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 font-mono text-sm text-zinc-100 outline-none focus:border-zinc-700"
+                className="h-9 rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none focus:border-border-focus"
                 placeholder="your-api-host:9090"
               />
             </label>
 
-            <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-950/50 p-1">
+            <div className="flex gap-1 rounded-lg border border-border bg-background/50 p-1">
               {tabs.map((t) => (
                 <button
                   key={t.id}
@@ -180,8 +180,8 @@ export function NodeSetupPanel({ node, token, onClose }: Props) {
                   className={cn(
                     "flex-1 rounded-md px-3 py-1.5 text-sm transition-colors",
                     tab === t.id
-                      ? "bg-zinc-800 text-zinc-100"
-                      : "text-zinc-500 hover:text-zinc-300",
+                      ? "bg-surface-raised text-foreground"
+                      : "text-muted hover:text-foreground",
                   )}
                 >
                   {t.label}
@@ -189,18 +189,18 @@ export function NodeSetupPanel({ node, token, onClose }: Props) {
               ))}
             </div>
 
-            <pre className="max-h-64 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-300">
+            <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-background p-4 font-mono text-xs leading-relaxed text-foreground">
               {tabContent[tab]}
             </pre>
             {tab === "quickinstall" && (
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted">
                 Run this command on the edge node to install the agent and connect it to this panel.
                 Requires: Docker, git. The script installs everything else automatically.
               </p>
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-zinc-800 px-5 py-4">
+          <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
             <Button variant="ghost" onClick={onClose}>
               Close
             </Button>

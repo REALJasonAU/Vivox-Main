@@ -40,9 +40,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const variants: Record<Variant, string> = {
   primary:
     "bg-vivox-500 text-white hover:bg-vivox-600 border border-vivox-500/50 shadow-sm shadow-vivox-500/20",
-  secondary: "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-800",
-  outline: "border border-zinc-800 text-zinc-100 hover:bg-zinc-900 hover:border-zinc-700",
-  ghost: "text-zinc-400 hover:bg-[#1f1f23] hover:text-zinc-100",
+  secondary: "bg-surface-raised text-foreground hover:bg-surface-raised border border-border",
+  outline: "border border-border text-foreground hover:bg-surface hover:border-border-focus",
+  ghost: "text-muted hover:bg-surface-raised hover:text-foreground",
   danger: "bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20",
 };
 
@@ -114,7 +114,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         transition={{ type: "spring", stiffness: 500, damping: 25 }}
         className={cn(
           "inline-flex select-none items-center rounded-lg font-medium transition-colors duration-200",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vivox-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vivox-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           "disabled:cursor-not-allowed disabled:opacity-45",
           variants[variant],
           sizes[size],

@@ -147,22 +147,22 @@ export function FileManager({ serviceId }: { serviceId: string }) {
   };
 
   return (
-    <div className="flex h-[480px] flex-col gap-0 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 lg:flex-row">
-      <div className="flex min-w-0 flex-1 flex-col border-b border-zinc-800 lg:border-b-0 lg:border-r">
-        <div className="flex flex-wrap items-center gap-1 border-b border-zinc-800 px-3 py-2 text-xs">
-          <button type="button" className="text-zinc-400 hover:text-zinc-100" onClick={() => navigateTo(-1)}>
+    <div className="flex h-[480px] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-surface lg:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col border-b border-border lg:border-b-0 lg:border-r">
+        <div className="flex flex-wrap items-center gap-1 border-b border-border px-3 py-2 text-xs">
+          <button type="button" className="text-muted hover:text-foreground" onClick={() => navigateTo(-1)}>
             /
           </button>
           {segments.map((seg, i) => (
             <span key={i} className="flex items-center gap-1">
               <button
                 type="button"
-                className="text-zinc-400 hover:text-zinc-100"
+                className="text-muted hover:text-foreground"
                 onClick={() => navigateTo(i)}
               >
                 {seg}
               </button>
-              <span className="text-zinc-600">/</span>
+              <span className="text-subtle">/</span>
             </span>
           ))}
           <div className="ml-auto">
@@ -187,13 +187,13 @@ export function FileManager({ serviceId }: { serviceId: string }) {
               ))}
             </div>
           ) : entries.length === 0 ? (
-            <p className="p-6 text-center text-sm text-zinc-500">Directory is empty</p>
+            <p className="p-6 text-center text-sm text-muted">Directory is empty</p>
           ) : (
             <table className="w-full text-sm">
               <tbody>
                 {currentPath !== "/" && (
                   <tr
-                    className="cursor-pointer border-b border-zinc-800/50 hover:bg-zinc-800/50"
+                    className="cursor-pointer border-b border-border/50 hover:bg-surface-raised/50"
                     onClick={() => {
                       const parent = "/" + segments.slice(0, -1).join("/");
                       setCurrentPath(parent === "/" ? "/" : parent.replace(/\/$/, "") || "/");
@@ -202,7 +202,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
                       setEditMode(false);
                     }}
                   >
-                    <td className="px-3 py-2 text-zinc-400">📁 ..</td>
+                    <td className="px-3 py-2 text-muted">📁 ..</td>
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
                   </tr>
@@ -246,7 +246,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
                       }
                       onDragLeave={entry.is_dir ? () => setDropTarget(null) : undefined}
                       className={cn(
-                        "cursor-pointer border-b border-zinc-800/50 hover:bg-zinc-800/50",
+                        "cursor-pointer border-b border-border/50 hover:bg-surface-raised/50",
                         selectedFile === fullPath && "bg-vivox-500/10",
                         entry.is_dir && dropTarget === entry.name && "border-dashed",
                       )}
@@ -261,13 +261,13 @@ export function FileManager({ serviceId }: { serviceId: string }) {
                         }
                       }}
                     >
-                      <td className="px-3 py-2 font-mono text-zinc-100">
+                      <td className="px-3 py-2 font-mono text-foreground">
                         {entry.is_dir ? "📁" : "📄"} {entry.name}
                       </td>
-                      <td className="px-3 py-2 text-xs text-zinc-500">
+                      <td className="px-3 py-2 text-xs text-muted">
                         {entry.is_dir ? "—" : formatBytes(entry.size)}
                       </td>
-                      <td className="hidden px-3 py-2 text-xs text-zinc-500 sm:table-cell">
+                      <td className="hidden px-3 py-2 text-xs text-muted sm:table-cell">
                         {entry.modified
                           ? formatRelativeTime(new Date(Number(entry.modified) * 1000))
                           : "—"}
@@ -279,7 +279,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
             </table>
           )}
         </div>
-        <div className="border-t border-zinc-800 px-3 py-1.5">
+        <div className="border-t border-border px-3 py-1.5">
           <Button variant="ghost" size="sm" onClick={() => void refetch()}>
             Refresh
           </Button>
@@ -287,7 +287,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted">
           <span className="min-w-0 flex-1 truncate font-mono">
             {selectedFile ? selectedFile : "Select a file to preview"}
           </span>
@@ -311,7 +311,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
               <Skeleton className="h-full min-h-[120px]" />
             </div>
           ) : selectedFile && fileContent === null ? (
-            <p className="p-3 text-sm text-zinc-500">Binary file — preview not available</p>
+            <p className="p-3 text-sm text-muted">Binary file — preview not available</p>
           ) : fileContent !== null && selectedFile ? (
             <MonacoEditor
               height="100%"
@@ -329,7 +329,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
               }}
             />
           ) : (
-            <p className="p-3 text-sm text-zinc-500">No file selected</p>
+            <p className="p-3 text-sm text-muted">No file selected</p>
           )}
         </div>
       </div>

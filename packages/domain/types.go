@@ -28,13 +28,23 @@ type HealthCheck struct {
 	Timeout  int    `json:"timeout,omitempty"`  // seconds (default 5)
 }
 
+// PortMapping is a structured published port with optional bind IP and alias.
+type PortMapping struct {
+	HostIP        string `json:"host_ip,omitempty"`
+	HostPort      int    `json:"host_port"`
+	ContainerPort int    `json:"container_port"`
+	Proto         string `json:"proto,omitempty"`
+	Alias         string `json:"alias,omitempty"`
+}
+
 // ServiceConfig is the per-service launch configuration.
 // Stored in services.config (JSONB).
 type ServiceConfig struct {
-	Image       string            `json:"image,omitempty"`
-	Ports       []string          `json:"ports,omitempty"`
-	Environment map[string]string `json:"environment,omitempty"`
-	StartupCmd  string            `json:"startup_cmd,omitempty"`
-	AssetURL    string            `json:"asset_url,omitempty"`
-	HealthCheck *HealthCheck      `json:"health_check,omitempty"`
+	Image        string            `json:"image,omitempty"`
+	Ports        []string          `json:"ports,omitempty"`
+	PortMappings []PortMapping     `json:"port_mappings,omitempty"`
+	Environment  map[string]string `json:"environment,omitempty"`
+	StartupCmd   string            `json:"startup_cmd,omitempty"`
+	AssetURL     string            `json:"asset_url,omitempty"`
+	HealthCheck  *HealthCheck      `json:"health_check,omitempty"`
 }

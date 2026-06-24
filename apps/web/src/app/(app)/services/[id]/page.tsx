@@ -20,6 +20,7 @@ import { useTopic } from "@/hooks/useWebSocket";
 import type { Deployment, Service, ServiceDomain, StatusPayload } from "@/lib/types";
 
 import { STATUS_META, isTransient } from "@/lib/status";
+import { displayPortsFromConfig, parsePortBinding } from "@/lib/ports";
 
 import { Console } from "@/components/Console";
 
@@ -60,7 +61,7 @@ type Tab = (typeof TABS)[number];
 
 const inputClass =
 
-  "rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 font-mono text-sm text-zinc-100 outline-none transition-all duration-200 focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700";
+  "rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus focus:ring-1 focus:ring-border-focus";
 
 
 
@@ -174,13 +175,13 @@ export default function ServiceDetailPage({
 
             <div className="flex items-center gap-3">
 
-              <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">{service.name}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">{service.name}</h1>
 
               <StatusBadge status={service.status} />
 
             </div>
 
-            <p className="mt-1 text-sm text-zinc-400">
+            <p className="mt-1 text-sm text-muted">
 
               {STATUS_META[service.status].description}
 
@@ -244,7 +245,7 @@ function BackLink() {
 
       href="/dashboard"
 
-      className="inline-flex w-fit items-center gap-1.5 text-sm text-zinc-400 transition-all duration-200 hover:text-zinc-100"
+      className="inline-flex w-fit items-center gap-1.5 text-sm text-muted transition-all duration-200 hover:text-foreground"
 
     >
 
@@ -262,7 +263,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 
   return (
 
-    <div className="flex gap-1 overflow-x-auto border-b border-zinc-800">
+    <div className="flex gap-1 overflow-x-auto border-b border-border">
 
       {TABS.map((t) => (
 
@@ -276,7 +277,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 
             "relative px-4 py-2.5 text-sm transition-all duration-200",
 
-            tab === t ? "text-zinc-100" : "text-zinc-400 hover:text-zinc-100",
+            tab === t ? "text-foreground" : "text-muted hover:text-foreground",
 
           )}
 
@@ -303,6 +304,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 
 
 function OverviewTab({ service }: { service: Service }) {
+  const portLines = displayPortsFromConfig(service.config);
 
   return (
 
@@ -314,7 +316,7 @@ function OverviewTab({ service }: { service: Service }) {
 
       <AlertsSection service={service} />
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-surface sm:grid-cols-4">
 
         <Fact label="Type" value={service.type} />
 
@@ -326,15 +328,11 @@ function OverviewTab({ service }: { service: Service }) {
 
         {service.config.image && <Fact label="Image" value={service.config.image} />}
 
-        {service.config.ports && service.config.ports.length > 0 && (
-          <Fact label="Ports" value={service.config.ports.join(", ")} />
-        )}
+        {portLines.length > 0 && <Fact label="Ports" value={portLines.join(", ")} />}
 
       </div>
 
-      {service.config.ports && service.config.ports.length > 0 && (
-        <PortCards ports={service.config.ports} status={service.status} />
-      )}
+      {portLines.length > 0 && <PortCards ports={portLines} status={service.status} />}
 
       <DomainsSection service={service} />
 
@@ -382,9 +380,9 @@ function DomainsSection({ service }: { service: Service }) {
   };
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-      <h3 className="flex items-center gap-2 text-sm font-medium text-zinc-100">
-        <Globe className="size-4 text-zinc-500" /> Custom Domains
+    <div className="rounded-xl border border-border bg-surface p-5">
+      <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Globe className="size-4 text-muted" /> Custom Domains
       </h3>
 
       <AnimatePresence>
@@ -394,10 +392,10 @@ function DomainsSection({ service }: { service: Service }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-2 flex items-center gap-3 rounded-lg border border-zinc-800 px-3 py-2"
+            className="mt-2 flex items-center gap-3 rounded-lg border border-border px-3 py-2"
           >
             <DomainStatusDot status={d.status} />
-            <span className="flex-1 font-mono text-sm text-zinc-100">{d.domain}</span>
+            <span className="flex-1 font-mono text-sm text-foreground">{d.domain}</span>
             {d.status === "active" && (
               <a
                 href={`https://${d.domain}`}
@@ -416,7 +414,7 @@ function DomainsSection({ service }: { service: Service }) {
             <button
               type="button"
               onClick={() => void removeDomain(d.id)}
-              className="text-zinc-600 hover:text-red-400"
+              className="text-subtle hover:text-red-400"
               aria-label={`Remove ${d.domain}`}
             >
               <X className="size-3.5" />
@@ -431,14 +429,14 @@ function DomainsSection({ service }: { service: Service }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void addDomain()}
           placeholder="game.example.com"
-          className="h-9 flex-1 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 font-mono text-sm text-zinc-100 outline-none focus:border-vivox-500/50"
+          className="h-9 flex-1 rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none focus:border-vivox-500/50"
         />
         <Button size="sm" onClick={() => void addDomain()} loading={adding} disabled={!input.trim()}>
           Add
         </Button>
       </div>
       {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
-      <p className="mt-2 text-xs text-zinc-600">
+      <p className="mt-2 text-xs text-subtle">
         Point your domain&apos;s A record to your node&apos;s IP, then add it here. SSL is handled
         automatically.
       </p>
@@ -465,23 +463,30 @@ function PortCards({ ports, status }: { ports: string[]; status: string }) {
   return (
     <div className="flex flex-wrap gap-2">
       {ports.map((p) => {
-        const [hostPort, rest] = p.split(":");
-        const containerPort = rest?.split("/")[0] ?? hostPort;
+        const binding = parsePortBinding(p.split(" (")[0] ?? p);
+        const hostPort = String(binding.host);
+        const containerPort = String(binding.container);
         const isHttp = httpPorts.includes(hostPort);
         const isGame = gamePorts.includes(hostPort);
-        const protocol = p.includes("/udp") ? "UDP" : "TCP";
+        const protocol = (binding.proto ?? "tcp").toUpperCase();
+        const aliasMatch = p.match(/ \(([^)]+)\)$/);
+        const alias = aliasMatch?.[1];
 
         return (
           <div
             key={p}
-            className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2"
+            className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2"
           >
             {isGame && <Gamepad2 className="size-3.5 text-emerald-400" />}
             {isHttp && <Globe className="size-3.5 text-blue-400" />}
-            {!isGame && !isHttp && <ArrowRightLeft className="size-3.5 text-zinc-500" />}
-            <span className="font-mono text-xs text-zinc-100">{hostPort}</span>
-            <span className="text-xs text-zinc-600">→ {containerPort}</span>
-            <span className="text-xs text-zinc-600">{protocol}</span>
+            {!isGame && !isHttp && <ArrowRightLeft className="size-3.5 text-muted" />}
+            {binding.hostIp && binding.hostIp !== "0.0.0.0" && (
+              <span className="font-mono text-xs text-muted">{binding.hostIp}:</span>
+            )}
+            <span className="font-mono text-xs text-foreground">{hostPort}</span>
+            <span className="text-xs text-subtle">→ {containerPort}</span>
+            <span className="text-xs text-subtle">{protocol}</span>
+            {alias && <span className="text-xs text-vivox-400">{alias}</span>}
             {isHttp && isUp && (
               <a
                 href={`http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:${hostPort}`}
@@ -503,11 +508,11 @@ function Fact({ label, value }: { label: string; value: string }) {
 
   return (
 
-    <div className="bg-zinc-900 p-4">
+    <div className="bg-surface p-4">
 
-      <p className="text-xs uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
 
-      <p className="mt-1 truncate font-mono text-sm text-zinc-100">{value}</p>
+      <p className="mt-1 truncate font-mono text-sm text-foreground">{value}</p>
 
     </div>
 
@@ -723,20 +728,20 @@ function SettingsTab({
       className="flex flex-col gap-4"
     >
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-        <h3 className="text-sm font-medium text-zinc-100">Tags</h3>
-        <p className="mt-1 text-xs text-zinc-500">Organize services on the dashboard. Up to 10 tags.</p>
+      <div className="rounded-xl border border-border bg-surface p-5">
+        <h3 className="text-sm font-medium text-foreground">Tags</h3>
+        <p className="mt-1 text-xs text-muted">Organize services on the dashboard. Up to 10 tags.</p>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 text-xs text-zinc-300"
+              className="inline-flex items-center gap-1 rounded-full border border-border-focus bg-surface-raised px-2.5 py-0.5 text-xs text-foreground"
             >
               {tag}
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
-                className="text-zinc-500 hover:text-zinc-200"
+                className="text-muted hover:text-foreground"
                 aria-label={`Remove tag ${tag}`}
               >
                 <X className="size-3" />
@@ -760,9 +765,9 @@ function SettingsTab({
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+      <div className="rounded-xl border border-border bg-surface p-5">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-zinc-100">Image & startup</h3>
+          <h3 className="text-sm font-medium text-foreground">Image & startup</h3>
           {!editingImage && (
             <Button variant="ghost" size="sm" onClick={() => setEditingImage(true)} disabled={locked}>
               Edit
@@ -773,7 +778,7 @@ function SettingsTab({
           <>
             <div className="mt-3 flex flex-col gap-3">
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs uppercase tracking-wider text-zinc-500">Docker image</span>
+                <span className="text-xs uppercase tracking-wider text-muted">Docker image</span>
                 <input
                   value={imageInput}
                   onChange={(e) => setImageInput(e.target.value)}
@@ -782,8 +787,8 @@ function SettingsTab({
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs uppercase tracking-wider text-zinc-500">
-                  Startup command <span className="text-zinc-600">(optional)</span>
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Startup command <span className="text-subtle">(optional)</span>
                 </span>
                 <input
                   value={cmdInput}
@@ -793,7 +798,7 @@ function SettingsTab({
                 />
               </label>
             </div>
-            <p className="mt-2 text-xs text-zinc-500">Changes apply on next restart.</p>
+            <p className="mt-2 text-xs text-muted">Changes apply on next restart.</p>
             <div className="mt-3 flex items-center gap-2">
               <Button
                 size="sm"
@@ -817,9 +822,9 @@ function SettingsTab({
         )}
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+      <div className="rounded-xl border border-border bg-surface p-5">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-zinc-100">Health check</h3>
+          <h3 className="text-sm font-medium text-foreground">Health check</h3>
           {!editingHealth && (
             <Button variant="ghost" size="sm" onClick={() => setEditingHealth(true)} disabled={locked}>
               Edit
@@ -828,19 +833,19 @@ function SettingsTab({
         </div>
         {editingHealth ? (
           <>
-            <label className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
+            <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={healthEnabled}
                 onChange={(e) => setHealthEnabled(e.target.checked)}
-                className="rounded border-zinc-600"
+                className="rounded border-border-focus"
               />
               Enable HTTP health checks
             </label>
             {healthEnabled && (
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-xs uppercase tracking-wider text-zinc-500">Path</span>
+                  <span className="text-xs uppercase tracking-wider text-muted">Path</span>
                   <input
                     value={healthPath}
                     onChange={(e) => setHealthPath(e.target.value)}
@@ -849,7 +854,7 @@ function SettingsTab({
                   />
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-xs uppercase tracking-wider text-zinc-500">Port</span>
+                  <span className="text-xs uppercase tracking-wider text-muted">Port</span>
                   <input
                     type="number"
                     value={healthPort}
@@ -858,7 +863,7 @@ function SettingsTab({
                   />
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-xs uppercase tracking-wider text-zinc-500">Interval</span>
+                  <span className="text-xs uppercase tracking-wider text-muted">Interval</span>
                   <select
                     value={healthInterval}
                     onChange={(e) => setHealthInterval(Number(e.target.value))}
@@ -870,7 +875,7 @@ function SettingsTab({
                   </select>
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-xs uppercase tracking-wider text-zinc-500">Timeout</span>
+                  <span className="text-xs uppercase tracking-wider text-muted">Timeout</span>
                   <select
                     value={healthTimeout}
                     onChange={(e) => setHealthTimeout(Number(e.target.value))}
@@ -883,7 +888,7 @@ function SettingsTab({
                 </label>
               </div>
             )}
-            <p className="mt-2 text-xs text-zinc-500">Agent polls the container IP on restart.</p>
+            <p className="mt-2 text-xs text-muted">Agent polls the container IP on restart.</p>
             <div className="mt-3 flex items-center gap-2">
               <Button size="sm" actionType="save" onClick={() => void saveHealth()} loading={savingHealth}>
                 <Save className="size-3.5" /> Save
@@ -894,7 +899,7 @@ function SettingsTab({
             </div>
           </>
         ) : (
-          <div className="mt-3 font-mono text-sm text-zinc-400">
+          <div className="mt-3 font-mono text-sm text-muted">
             {service.config.health_check ? (
               <span>
                 {service.config.health_check.path} on port {service.config.health_check.port} every{" "}
@@ -907,11 +912,11 @@ function SettingsTab({
         )}
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+      <div className="rounded-xl border border-border bg-surface p-5">
 
         <div className="flex items-center justify-between gap-3">
 
-          <h3 className="text-sm font-medium text-zinc-100">Resource limits</h3>
+          <h3 className="text-sm font-medium text-foreground">Resource limits</h3>
 
           {!editing && (
 
@@ -971,7 +976,7 @@ function SettingsTab({
 
         )}
 
-        <p className="mt-2 text-xs text-zinc-500">
+        <p className="mt-2 text-xs text-muted">
 
           Limit changes apply on the next restart.
 
@@ -1004,7 +1009,7 @@ function SettingsTab({
         className="rounded-xl border border-red-500/30 bg-red-500/5 p-5"
       >
         <h3 className="text-sm font-medium text-red-400">Danger zone</h3>
-        <p className="mt-1 text-xs text-zinc-400">
+        <p className="mt-1 text-xs text-muted">
           Deleting a service stops its container and removes all configuration.
         </p>
         <motion.div
@@ -1041,11 +1046,11 @@ function LimitField({ label, value }: { label: string; value: string | number })
 
   return (
 
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+    <div className="rounded-lg border border-border bg-background/50 p-3">
 
-      <p className="text-xs uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
 
-      <p className="mt-1 text-base text-zinc-100">{value}</p>
+      <p className="mt-1 text-base text-foreground">{value}</p>
 
     </div>
 
@@ -1077,7 +1082,7 @@ function LimitInput({
 
     <label className="flex flex-col gap-1.5">
 
-      <span className="text-xs uppercase tracking-wider text-zinc-500">{label}</span>
+      <span className="text-xs uppercase tracking-wider text-muted">{label}</span>
 
       <input
 
@@ -1135,7 +1140,7 @@ function DeploymentsTab({ serviceId }: { serviceId: string }) {
 
     return (
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-8 text-center text-sm text-zinc-400">
+      <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted">
 
         No deployments yet — deploy a service to see history
 
@@ -1149,7 +1154,7 @@ function DeploymentsTab({ serviceId }: { serviceId: string }) {
 
   return (
 
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+    <div className="rounded-xl border border-border bg-surface p-5">
 
       <ol className="relative flex flex-col gap-0">
 
@@ -1227,7 +1232,7 @@ function DeploymentRow({
 
       label: "Queued",
 
-      className: "border-zinc-700 bg-zinc-800 text-zinc-400",
+      className: "border-border-focus bg-surface-raised text-muted",
 
     },
 
@@ -1245,7 +1250,7 @@ function DeploymentRow({
 
         <span
 
-          className="absolute left-[7px] top-4 h-full w-px bg-zinc-800"
+          className="absolute left-[7px] top-4 h-full w-px bg-surface-raised"
 
           aria-hidden
 
@@ -1255,7 +1260,7 @@ function DeploymentRow({
 
       <span
 
-        className="relative z-10 mt-1 size-3.5 shrink-0 rounded-full border-2 border-zinc-700 bg-zinc-900"
+        className="relative z-10 mt-1 size-3.5 shrink-0 rounded-full border-2 border-border-focus bg-surface"
 
         aria-hidden
 
@@ -1281,7 +1286,7 @@ function DeploymentRow({
 
           </span>
 
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-muted">
 
             {formatRelativeTime(deployment.created_at)}
 
@@ -1289,7 +1294,7 @@ function DeploymentRow({
 
           {deployment.commit_sha && (
 
-            <span className="font-mono text-xs text-zinc-400">
+            <span className="font-mono text-xs text-muted">
 
               {deployment.commit_sha.slice(0, 7)}
 

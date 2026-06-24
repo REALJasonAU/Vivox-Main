@@ -41,6 +41,7 @@
   --status-crashed: 239 68 68;
 
   --border-alpha: 1;
+  --border-focus-rgb: 63 63 70;
 }
 
 .light {
@@ -70,6 +71,7 @@
   --status-stopping: 234 88 12;
   --status-stopped: 113 113 122;
   --status-crashed: 220 38 38;
+  --border-focus-rgb: 212 212 216;
 }
 
 * {
@@ -87,6 +89,11 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 
 @layer components {

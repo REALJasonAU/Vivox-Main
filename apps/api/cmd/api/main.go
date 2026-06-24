@@ -193,7 +193,7 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 	})
 
 	authmw := auth.New(auth.Config{
-		Secret:  []byte(a.cfg.AuthSecret),
+		JWKSURL: a.cfg.AuthJWKSURL,
 		DevMode: a.cfg.AuthDevMode,
 		ApiKeys: a.q,
 	})

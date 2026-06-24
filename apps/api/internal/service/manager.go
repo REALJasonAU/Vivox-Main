@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nexus-control/apps/api/internal/commands"
@@ -344,11 +345,25 @@ func (m *Manager) Audit(ctx context.Context, actorID, action, targetType, target
 
 // buildStartTask projects a persisted service into a StartServiceTask.
 func buildStartTask(svc db.Service) *gen.StartServiceTask {
+	env := make(map[string]string, len(svc.Config.Environment)+3)
+	for k, v := range svc.Config.Environment {
+		env[k] = v
+	}
+	if svc.ResourceLimits.CPUShares > 0 {
+		env["VIVOX_CPU_SHARES"] = strconv.FormatInt(svc.ResourceLimits.CPUShares, 10)
+	}
+	if svc.ResourceLimits.DiskGB > 0 {
+		env["VIVOX_DISK_GB"] = strconv.FormatInt(svc.ResourceLimits.DiskGB, 10)
+	}
+	if svc.Config.StartupCmd != "" {
+		env["VIVOX_STARTUP_CMD"] = svc.Config.StartupCmd
+	}
+
 	task := &gen.StartServiceTask{
 		ServiceId:        UUIDString(svc.ID),
 		ContainerImage:   svc.Config.Image,
-		PortBindings:     svc.Config.Ports,
-		EnvVars:          svc.Config.Environment,
+		PortBindings:     domain.PortsForDocker(svc.Config),
+		EnvVars:          env,
 		MemoryLimitBytes: svc.ResourceLimits.MemoryMB * 1024 * 1024,
 	}
 	if hc := svc.Config.HealthCheck; hc != nil && hc.Path != "" && hc.Port > 0 {

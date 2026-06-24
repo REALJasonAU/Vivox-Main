@@ -15,10 +15,12 @@ import (
 // ConfigurableField is a user-tunable template parameter surfaced in the deploy
 // wizard. The supplied value is written into the service environment under Env.
 type ConfigurableField struct {
-	Key     string `yaml:"key" json:"key"`
-	Label   string `yaml:"label" json:"label"`
-	Default string `yaml:"default" json:"default"`
-	Env     string `yaml:"env" json:"env"`
+	Key          string `yaml:"key" json:"key"`
+	Label        string `yaml:"label" json:"label"`
+	Default      string `yaml:"default" json:"default"`
+	Env          string `yaml:"env" json:"env"`
+	Description  string `yaml:"description" json:"description,omitempty"`
+	Options      string `yaml:"options" json:"options,omitempty"`
 }
 
 // TemplateResources are the default resource limits applied to a service created
@@ -39,6 +41,7 @@ type Template struct {
 	Ports        []string            `yaml:"ports" json:"ports"`
 	Env          map[string]string   `yaml:"env" json:"env"`
 	Configurable []ConfigurableField `yaml:"configurable" json:"configurable"`
+	StartupCmd   string              `yaml:"startup_cmd" json:"startup_cmd,omitempty"`
 	Resources    TemplateResources   `yaml:"resources" json:"resources"`
 }
 

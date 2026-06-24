@@ -41,9 +41,9 @@ function AccountSection() {
   };
 
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+    <section className="rounded-xl border border-border bg-surface p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-100">Account</h2>
+        <h2 className="text-sm font-medium text-foreground">Account</h2>
         {!editing && (
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             Edit
@@ -69,7 +69,7 @@ function AccountSection() {
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && void save()}
                 placeholder="Your name"
-                className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 text-sm text-zinc-100 outline-none focus:border-vivox-500/50"
+                className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background/50 px-3 text-sm text-foreground outline-none focus:border-vivox-500/50"
               />
               <Button size="sm" actionType="save" onClick={() => void save()} loading={saving}>
                 Save
@@ -87,8 +87,8 @@ function AccountSection() {
             </div>
           ) : (
             <>
-              <p className="font-medium text-zinc-100">{user?.name ?? "—"}</p>
-              <p className="text-sm text-zinc-500">{user?.email ?? "Not signed in"}</p>
+              <p className="font-medium text-foreground">{user?.name ?? "—"}</p>
+              <p className="text-sm text-muted">{user?.email ?? "Not signed in"}</p>
             </>
           )}
         </div>
@@ -129,8 +129,8 @@ function PasswordSection() {
   };
 
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-      <h2 className="text-sm font-medium text-zinc-100">Change password</h2>
+    <section className="rounded-xl border border-border bg-surface p-6">
+      <h2 className="text-sm font-medium text-foreground">Change password</h2>
       <div className="mt-4 flex flex-col gap-3">
         <PasswordField label="Current password" value={current} onChange={setCurrent} />
         <PasswordField
@@ -172,23 +172,23 @@ function PasswordField({
   const [show, setShow] = useState(false);
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-xs uppercase tracking-wider text-zinc-500">{label}</span>
+      <span className="text-xs uppercase tracking-wider text-muted">{label}</span>
       <div className="relative">
         <input
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 pr-10 text-sm text-zinc-100 outline-none focus:border-vivox-500/50"
+          className="h-10 w-full rounded-lg border border-border bg-background/50 px-3 pr-10 text-sm text-foreground outline-none focus:border-vivox-500/50"
         />
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
         >
           {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
         </button>
       </div>
-      {hint && <p className="text-xs text-zinc-500">{hint}</p>}
+      {hint && <p className="text-xs text-muted">{hint}</p>}
       {error && <p className="text-xs text-red-400">{error}</p>}
     </label>
   );
@@ -258,11 +258,11 @@ function WebhooksSection() {
   };
 
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+    <section className="rounded-xl border border-border bg-surface p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium text-zinc-100">Webhooks</h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h2 className="text-sm font-medium text-foreground">Webhooks</h2>
+          <p className="mt-1 text-sm text-muted">
             POST to a URL when services crash, alert, or stop.
           </p>
         </div>
@@ -280,22 +280,22 @@ function WebhooksSection() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2.5 text-sm"
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
             >
               <span
                 className={cn(
                   "size-2 rounded-full",
-                  hook.enabled ? "bg-vivox-500" : "bg-zinc-600",
+                  hook.enabled ? "bg-vivox-500" : "bg-subtle",
                 )}
               />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-300">
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
                 {hook.url}
               </span>
-              <span className="text-xs text-zinc-500">{hook.events.join(", ")}</span>
+              <span className="text-xs text-muted">{hook.events.join(", ")}</span>
               <button
                 type="button"
                 onClick={() => void toggleHook(hook)}
-                className="text-xs text-zinc-500 hover:text-zinc-300"
+                className="text-xs text-muted hover:text-foreground"
               >
                 {hook.enabled ? "Pause" : "Enable"}
               </button>
@@ -319,29 +319,29 @@ function WebhooksSection() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-4 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950/50 p-4"
+            className="mt-4 overflow-hidden rounded-lg border border-border-focus bg-background/50 p-4"
           >
             <div className="flex flex-col gap-3">
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://hooks.slack.com/..."
-                className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 font-mono text-sm text-zinc-100"
+                className="h-10 rounded-lg border border-border bg-surface px-3 font-mono text-sm text-foreground"
               />
               <input
                 value={secret}
                 onChange={(e) => setSecret(e.target.value)}
                 placeholder="Signing secret (optional)"
-                className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100"
+                className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-foreground"
               />
               <div className="flex flex-wrap gap-3">
                 {WEBHOOK_EVENTS.map((ev) => (
-                  <label key={ev} className="flex items-center gap-1.5 text-sm text-zinc-300">
+                  <label key={ev} className="flex items-center gap-1.5 text-sm text-foreground">
                     <input
                       type="checkbox"
                       checked={events.includes(ev)}
                       onChange={() => toggleEvent(ev)}
-                      className="rounded border-zinc-600"
+                      className="rounded border-border-focus"
                     />
                     {ev}
                   </label>
@@ -360,9 +360,9 @@ function WebhooksSection() {
         )}
       </AnimatePresence>
 
-      <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/50 p-3 text-xs text-zinc-500">
-        <p className="mb-1 font-medium text-zinc-400">Payload format</p>
-        <code className="font-mono text-zinc-400">
+      <div className="mt-4 rounded-lg border border-border bg-background/50 p-3 text-xs text-muted">
+        <p className="mb-1 font-medium text-muted">Payload format</p>
+        <code className="font-mono text-muted">
           {"{ event, service_id, service_name, timestamp, meta }"}
         </code>
         <p className="mt-2">Signed with X-Vivox-Signature: sha256=… when a secret is set.</p>
@@ -391,7 +391,7 @@ function AccountDangerZone() {
   return (
     <section className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
       <h2 className="text-sm font-medium text-red-400">Account danger zone</h2>
-      <p className="mt-1 text-xs text-zinc-400">
+      <p className="mt-1 text-xs text-muted">
         Signing out from all devices will invalidate all active sessions.
       </p>
       <Button
@@ -465,16 +465,16 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">Settings</h1>
-        <p className="mt-1 text-sm text-zinc-400">Workspace and appearance.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
+        <p className="mt-1 text-sm text-muted">Workspace and appearance.</p>
       </div>
 
       <AccountSection />
 
       <PasswordSection />
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="text-sm font-medium text-zinc-100">Appearance</h2>
+      <section className="rounded-xl border border-border bg-surface p-6">
+        <h2 className="text-sm font-medium text-foreground">Appearance</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
           {(["dark", "light"] as const).map((t) => (
             <button
@@ -483,8 +483,8 @@ export default function SettingsPage() {
               className={cn(
                 "flex items-center gap-3 rounded-lg border px-4 py-3 text-sm capitalize transition-all duration-200",
                 theme === t
-                  ? "border-vivox-500/50 bg-vivox-500/10 text-zinc-100"
-                  : "border-zinc-800 text-zinc-400 hover:border-zinc-700",
+                  ? "border-vivox-500/50 bg-vivox-500/10 text-foreground"
+                  : "border-border text-muted hover:border-border-focus",
               )}
             >
               {t === "dark" ? <Moon className="size-4" /> : <Sun className="size-4" />}
@@ -494,11 +494,11 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <section className="rounded-xl border border-border bg-surface p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-medium text-zinc-100">API Keys</h2>
-            <p className="mt-1 text-sm text-zinc-500">
+            <h2 className="text-sm font-medium text-foreground">API Keys</h2>
+            <p className="mt-1 text-sm text-muted">
               Use API keys to trigger deployments from CI/CD.
             </p>
           </div>
@@ -526,7 +526,7 @@ export default function SettingsPage() {
                 Shown once — save it now
               </p>
               <div className="mt-2 flex items-center gap-2">
-                <code className="flex-1 break-all rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-200">
+                <code className="flex-1 break-all rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground">
                   {revealedKey.plaintext}
                 </code>
                 <Button size="sm" variant="ghost" onClick={() => void copyPlaintext()}>
@@ -536,7 +536,7 @@ export default function SettingsPage() {
                   <X className="size-4" />
                 </Button>
               </div>
-              <p className="mt-2 text-xs text-zinc-500">Auto-closing in {countdown}s</p>
+              <p className="mt-2 text-xs text-muted">Auto-closing in {countdown}s</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -550,12 +550,12 @@ export default function SettingsPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2.5"
+                className="flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5"
               >
                 <Key className="size-4 shrink-0 text-vivox-400" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-100">{key.name}</p>
-                  <p className="font-mono text-xs text-zinc-500">
+                  <p className="truncate text-sm font-medium text-foreground">{key.name}</p>
+                  <p className="font-mono text-xs text-muted">
                     {key.key_prefix}… · Created {formatRelativeTime(key.created_at)}
                   </p>
                 </div>
@@ -572,13 +572,13 @@ export default function SettingsPage() {
             ))}
           </AnimatePresence>
           {apiKeys.length === 0 && (
-            <p className="py-4 text-center text-sm text-zinc-500">No API keys yet.</p>
+            <p className="py-4 text-center text-sm text-muted">No API keys yet.</p>
           )}
         </ul>
 
-        <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-          <p className="mb-2 text-xs uppercase tracking-wider text-zinc-500">Redeploy from CI/CD</p>
-          <code className="block font-mono text-xs leading-relaxed text-zinc-400">
+        <div className="mt-4 rounded-lg border border-border bg-background/50 p-3">
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted">Redeploy from CI/CD</p>
+          <code className="block font-mono text-xs leading-relaxed text-muted">
             curl -X POST {API_BASE}/services/{"{service_id}"}/redeploy \<br />
             {"  "}-H &quot;Authorization: ApiKey vvx_...&quot;
           </code>
@@ -586,16 +586,6 @@ export default function SettingsPage() {
       </section>
 
       <WebhooksSection />
-
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="text-sm font-medium text-zinc-100">Control plane</h2>
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <span className="text-zinc-500">API endpoint</span>
-          <code className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-xs text-zinc-400">
-            {API_BASE}
-          </code>
-        </div>
-      </section>
 
       <AccountDangerZone />
     </div>

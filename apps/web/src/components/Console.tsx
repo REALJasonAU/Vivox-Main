@@ -167,13 +167,13 @@ export function Console({ serviceId, className }: Props) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border border-zinc-800 bg-[#0a0a0c]",
+        "relative overflow-hidden rounded-xl border border-border bg-[#0a0a0c]",
         className,
       )}
     >
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-2.5">
-        <TerminalIcon className="size-3.5 text-zinc-500" />
-        <span className="font-mono text-xs text-zinc-500">console</span>
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        <TerminalIcon className="size-3.5 text-muted" />
+        <span className="font-mono text-xs text-muted">console</span>
         <div className="ml-auto flex gap-1.5">
           <span className="size-2.5 rounded-full bg-red-500/70" />
           <span className="size-2.5 rounded-full bg-amber-500/70" />
@@ -181,7 +181,7 @@ export function Console({ serviceId, className }: Props) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <Button variant="ghost" size="sm" onClick={clearConsole}>
           <Trash2 className="size-3.5" /> Clear
         </Button>
@@ -207,7 +207,7 @@ export function Console({ serviceId, className }: Props) {
       </div>
 
       {searchOpen && (
-        <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -215,7 +215,7 @@ export function Console({ serviceId, className }: Props) {
               if (e.key === "Enter") findNext();
             }}
             placeholder="Search console…"
-            className="h-8 flex-1 rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 font-mono text-xs text-zinc-100 outline-none focus:border-zinc-700"
+            className="h-8 flex-1 rounded-lg border border-border bg-background/50 px-2 font-mono text-xs text-foreground outline-none focus:border-border-focus"
           />
           <Button variant="ghost" size="sm" onClick={findPrevious}>
             Prev

@@ -111,7 +111,7 @@ export function ExecTerminal({ serviceId, className }: { serviceId: string; clas
   return (
     <div
       className={cn(
-        "flex h-[420px] flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80",
+        "flex h-[420px] flex-col overflow-hidden rounded-xl border border-border bg-background/80",
         className,
       )}
     >

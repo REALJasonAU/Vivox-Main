@@ -34,17 +34,17 @@ export function EmptyState({
 
   return (
 
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 bg-zinc-900 px-6 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-surface px-6 py-16 text-center">
 
-      <span className="grid size-12 place-items-center rounded-xl border border-zinc-800 bg-zinc-800 text-vivox-400">
+      <span className="grid size-12 place-items-center rounded-xl border border-border bg-surface-raised text-vivox-400">
 
         {icon}
 
       </span>
 
-      <h3 className="text-base font-medium tracking-tight text-zinc-100">{title}</h3>
+      <h3 className="text-base font-medium tracking-tight text-foreground">{title}</h3>
 
-      <p className="max-w-sm text-sm text-zinc-400">{description}</p>
+      <p className="max-w-sm text-sm text-muted">{description}</p>
 
       {action && <div className="mt-2">{action}</div>}
 
@@ -82,11 +82,11 @@ export function Skeleton({ className }: { className?: string }) {
 
       className={cn(
 
-        "relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900",
+        "relative overflow-hidden rounded-xl border border-border bg-surface",
 
         "after:absolute after:inset-0 after:-translate-x-full after:animate-shimmer",
 
-        "after:bg-gradient-to-r after:from-transparent after:via-zinc-800/60 after:to-transparent",
+        "after:bg-gradient-to-r after:from-transparent after:via-surface-raised/60 after:to-transparent",
 
         className,
 

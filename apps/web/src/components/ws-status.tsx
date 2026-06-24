@@ -18,7 +18,7 @@ export function WsStatusIndicator({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border border-zinc-800 px-2.5 py-1 text-[11px] text-zinc-400",
+        "inline-flex items-center gap-2 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted",
         className,
       )}
       title={`Realtime: ${meta.label}`}

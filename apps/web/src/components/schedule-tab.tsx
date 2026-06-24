@@ -13,7 +13,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 
 const STATUS_STYLES: Record<ScheduledTask["status"], string> = {
   active: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
-  paused: "border-zinc-700 bg-zinc-800 text-zinc-400",
+  paused: "border-border-focus bg-surface-raised text-muted",
   running: "border-amber-500/40 bg-amber-500/10 text-amber-400 animate-pulse",
   failed: "border-red-500/40 bg-red-500/10 text-red-400",
 };
@@ -85,44 +85,44 @@ export function ScheduleTab({ serviceId }: { serviceId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-zinc-400">Cron-based automation for this service.</p>
+        <p className="text-sm text-muted">Cron-based automation for this service.</p>
         <Button size="sm" onClick={() => setShowForm((s) => !s)}>
           <Plus className="size-3.5" /> New task
         </Button>
       </div>
 
       {showForm && (
-        <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Task name"
-            className="h-10 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 text-sm text-zinc-100 outline-none focus:border-zinc-700"
+            className="h-10 rounded-lg border border-border bg-background/50 px-3 text-sm text-foreground outline-none focus:border-border-focus"
           />
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+            <label className="flex flex-col gap-1 text-xs text-muted">
               Action
               <select
                 value={action}
                 onChange={(e) => setAction(e.target.value)}
-                className="h-10 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 text-sm text-zinc-100"
+                className="h-10 rounded-lg border border-border bg-background/50 px-3 text-sm text-foreground"
               >
                 <option value="restart">restart</option>
                 <option value="stop">stop</option>
                 <option value="start">start</option>
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-xs text-zinc-500">
+            <label className="flex flex-col gap-1 text-xs text-muted">
               Cron expression
               <input
                 value={cronExpr}
                 onChange={(e) => setCronExpr(e.target.value)}
-                className="h-10 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 font-mono text-sm text-zinc-100"
+                className="h-10 rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground"
               />
             </label>
           </div>
-          <p className="text-xs text-zinc-500">{describeCron(cronExpr)}</p>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
+          <p className="text-xs text-muted">{describeCron(cronExpr)}</p>
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={enabled}
@@ -160,11 +160,11 @@ export function ScheduleTab({ serviceId }: { serviceId: string }) {
               }
               transition={{ duration: 0.25, ease: [0.4, 0, 1, 1] }}
               style={{ overflow: "hidden" }}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-zinc-100">{task.name}</span>
+                  <span className="font-medium text-foreground">{task.name}</span>
                   <span
                     className={cn(
                       "rounded-full border px-2 py-0.5 text-xs capitalize",
@@ -173,9 +173,9 @@ export function ScheduleTab({ serviceId }: { serviceId: string }) {
                   >
                     {task.status}
                   </span>
-                  <span className="font-mono text-xs text-zinc-500">{task.cron_expr}</span>
+                  <span className="font-mono text-xs text-muted">{task.cron_expr}</span>
                 </div>
-                <p className="mt-1 text-xs text-zinc-500">
+                <p className="mt-1 text-xs text-muted">
                   {task.action}
                   {task.next_run_at && ` · next ${formatRelativeTime(task.next_run_at)}`}
                   {task.last_result && ` · last: ${task.last_result}`}

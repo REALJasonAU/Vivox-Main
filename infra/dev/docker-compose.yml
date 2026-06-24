@@ -62,6 +62,7 @@ services:
       DATABASE_URL: postgres://nexus:nexus@postgres:5432/nexus
       REDIS_ADDR: redis:6379
       BETTER_AUTH_SECRET: dev-insecure-secret-change-me
+      BETTER_AUTH_JWKS_URL: http://web:3000/api/auth/jwks
       AUTH_DEV_MODE: "false"
       GRPC_TLS_DISABLED: "true"
       MIGRATIONS_DIR: /app/infra/migrations

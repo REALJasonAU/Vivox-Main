@@ -157,10 +157,9 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted">Platform overview and fleet health</p>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Dashboard</h1>
       </div>
 
       {error && <ErrorBanner message={`Could not load dashboard (${error})`} />}
@@ -187,7 +186,7 @@ export default function AdminDashboardPage() {
               sub={`${stats.running} running`}
               icon={Boxes}
               accent="text-emerald-500"
-              href="/admin/services"
+              href="/admin/servers"
             />
             <StatCard
               label="Edge nodes"

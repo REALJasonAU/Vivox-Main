@@ -38,7 +38,7 @@ const config: Config = {
 
         border: "rgb(var(--border) / <alpha-value>)",
 
-        "border-focus": "#d4d4d8",
+        "border-focus": "rgb(var(--border-focus-rgb) / <alpha-value>)",
 
         accent: "rgb(var(--accent) / <alpha-value>)",
 
