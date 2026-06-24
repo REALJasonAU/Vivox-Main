@@ -9,7 +9,7 @@ Create a full suite of install/update/uninstall scripts and wire auto-update int
 Every script must start with these constants so there is one place to update them:
 
 ```bash
-VIVOX_REPO_URL="https://github.com/OWNER/REPO"   # ← fill in actual GitHub URL
+VIVOX_REPO_URL="https://github.com/REALJasonAU/Vivox-Main"
 VIVOX_BRANCH="main"
 VIVOX_INSTALL_DIR="/opt/vivox"
 VIVOX_COMPOSE_FILE="infra/prod/docker-compose.yml"
@@ -25,7 +25,7 @@ VIVOX_ENV_FILE="infra/prod/.env"
 **Invocation:**
 ```bash
 # Interactive (asks what to install):
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/infra/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main/infra/scripts/install.sh | bash
 
 # Or with a flag to skip the mode question:
 bash <(curl -fsSL .../install.sh) --panel-only
@@ -223,7 +223,7 @@ systemctl enable --now vivox-updater.timer
 
 **Invocation** (this is the command shown on the Nodes page — see section 7):
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/infra/scripts/install-node.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main/infra/scripts/install-node.sh) \
   --panel-url https://panel.example.com \
   --token TOKEN_HERE \
   --node-id NODE_UUID_HERE
@@ -453,7 +453,7 @@ type SetupTab = "docker" | "systemd" | "env" | "quickinstall";
 Add a `GITHUB_RAW_URL` constant at the top of the component:
 ```ts
 const GITHUB_RAW_URL =
-  "https://raw.githubusercontent.com/OWNER/REPO/main";
+  "https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main";
 ```
 
 Add `quickInstallContent` computed value alongside the others:

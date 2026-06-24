@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Vivox — panel one-command installer
 #
-# curl -fsSL https://raw.githubusercontent.com/your-org/vivox/main/infra/scripts/install.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main/infra/scripts/install.sh | bash
 # bash <(curl -fsSL .../install.sh) --panel-only
 # bash <(curl -fsSL .../install.sh) --panel-and-node
 
 set -euo pipefail
 
-VIVOX_REPO_URL="https://github.com/your-org/vivox"
+VIVOX_REPO_URL="https://github.com/REALJasonAU/Vivox-Main"
 VIVOX_BRANCH="main"
 VIVOX_INSTALL_DIR="/opt/vivox"
 VIVOX_COMPOSE_FILE="infra/prod/docker-compose.yml"

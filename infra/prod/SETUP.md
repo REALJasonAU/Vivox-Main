@@ -5,14 +5,14 @@
 On a fresh Linux VPS (Ubuntu/Debian), run as root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-org/vivox/main/infra/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main/infra/scripts/install.sh | bash
 ```
 
 Flags (skip the interactive mode prompt):
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/your-org/vivox/main/infra/scripts/install.sh) --panel-only
-bash <(curl -fsSL https://raw.githubusercontent.com/your-org/vivox/main/infra/scripts/install.sh) --panel-and-node
+bash <(curl -fsSL https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main/infra/scripts/install.sh) --panel-only
+bash <(curl -fsSL https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main/infra/scripts/install.sh) --panel-and-node
 ```
 
 The installer clones to `/opt/vivox`, runs `infra/prod/setup.sh`, enables a **systemd timer** that auto-updates every 5 minutes, and optionally installs a local edge agent.
@@ -26,7 +26,7 @@ The installer clones to `/opt/vivox`, runs `infra/prod/setup.sh`, enables a **sy
 | `infra/scripts/update-node.sh` | Rebuild agent binary (preserves `/etc/vivox-agent/agent.env`) |
 | `infra/scripts/uninstall-node.sh` | Remove agent service and `/opt/vivox-agent` |
 
-Update `VIVOX_REPO_URL` at the top of each script when you fork or rename the repository.
+Update `VIVOX_REPO_URL` at the top of each script if you fork the repository.
 
 ---
 
@@ -60,7 +60,7 @@ Edge node (separate VPS)
 ssh user@your-vps
 
 # Clone the repo
-git clone https://github.com/your-org/vivox.git /opt/vivox
+git clone https://github.com/REALJasonAU/Vivox-Main.git /opt/vivox
 cd /opt/vivox
 ```
 

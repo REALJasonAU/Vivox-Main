@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/useToast";
 
 const GITHUB_RAW_URL =
-  "https://raw.githubusercontent.com/your-org/vivox/main";
+  "https://raw.githubusercontent.com/REALJasonAU/Vivox-Main/main";
 
 type SetupTab = "docker" | "systemd" | "env" | "quickinstall";
 
