@@ -54,10 +54,10 @@ function toWsUrl(): string {
   return `${path}?token=${encodeURIComponent(token)}`;
 }
 
-const MAX_BACKOFF_MS = 30_000;
+const MIN_BACKOFF_MS = 3_000;
+const MAX_BACKOFF_MS = 60_000;
 
 class WebSocketManager {
-  private url: string;
   private ws: WebSocket | null = null;
   private status: WsStatus = "closed";
   private readonly topics = new Map<string, Set<TopicHandler>>();
@@ -65,10 +65,6 @@ class WebSocketManager {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
-
-  constructor(url: string) {
-    this.url = url;
-  }
 
   getStatus(): WsStatus {
     return this.status;
@@ -95,12 +91,26 @@ class WebSocketManager {
 
   private connect() {
     if (typeof window === "undefined") return;
+
+    // Recompute URL on every connect attempt so we always use the latest token.
+    // If the token isn't available yet, wait 500ms without burning reconnect budget.
+    const url = toWsUrl();
+    if (!getWsToken()) {
+      if (!this.reconnectTimer) {
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          if (this.topics.size > 0) this.connect();
+        }, 500);
+      }
+      return;
+    }
+
     this.intentionalClose = false;
     this.setStatus("connecting");
 
     let ws: WebSocket;
     try {
-      ws = new WebSocket(this.url);
+      ws = new WebSocket(url);
     } catch {
       this.setStatus("error");
       this.scheduleReconnect();
@@ -153,13 +163,14 @@ class WebSocketManager {
     if (this.reconnectTimer) return;
     const delay = Math.min(
       MAX_BACKOFF_MS,
-      1000 * 2 ** this.reconnectAttempts,
+      MIN_BACKOFF_MS * 2 ** this.reconnectAttempts,
     );
-    const jitter = Math.random() * 400;
+    const jitter = Math.random() * 800;
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.ensureConnection();
+      if (this.topics.size === 0) return;
+      this.connect();
     }, delay + jitter);
   }
 
@@ -215,16 +226,16 @@ class WebSocketManager {
   }
 }
 
-/* Module-level singleton: guarantees one connection per browser session even
-   across React remounts / fast refresh. Keyed by URL so env changes rebuild. */
-let singleton: { url: string; manager: WebSocketManager } | null = null;
+/* Module-level singleton: one WebSocket manager per browser session.
+   The manager recomputes the URL (including auth token) on every connect
+   attempt, so it handles tokens becoming available after initial render. */
+let singleton: WebSocketManager | null = null;
 
 export function getWebSocketManager(): WebSocketManager {
-  const url = toWsUrl();
-  if (!singleton || singleton.url !== url) {
-    singleton = { url, manager: new WebSocketManager(url) };
+  if (!singleton) {
+    singleton = new WebSocketManager();
   }
-  return singleton.manager;
+  return singleton;
 }
 
 /* ----------------------------- React bindings ----------------------------- */

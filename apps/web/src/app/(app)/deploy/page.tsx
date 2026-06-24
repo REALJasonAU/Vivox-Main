@@ -83,14 +83,16 @@ function apiTemplateToDeployTemplate(t: ApiTemplate): DeployTemplate {
       required: f.required,
     }));
 
-  const staticEnv = Object.entries(t.env ?? {}).map(([key, value]) => ({
-    key,
-    label: key,
-    value,
-    required: key === "EULA",
-    description: undefined as string | undefined,
-    options: undefined as string | undefined,
-  }));
+  const staticEnv = Object.entries(t.env ?? {})
+    .filter(([key]) => key.toUpperCase() !== "EULA")
+    .map(([key, value]) => ({
+      key,
+      label: key,
+      value,
+      required: false,
+      description: undefined as string | undefined,
+      options: undefined as string | undefined,
+    }));
 
   const cpuThreads = t.resources?.cpu_shares
     ? Math.max(1, Math.round(t.resources.cpu_shares / 1024))
@@ -115,7 +117,7 @@ function apiTemplateToDeployTemplate(t: ApiTemplate): DeployTemplate {
 function portBindingLabel(b: PortBinding): string {
   const proto = b.proto || "tcp";
   const alias = b.alias?.trim();
-  return `${b.hostIp}:${b.host} → ${b.container}/${proto}${alias ? ` (${alias})` : ""}`;
+  return `${b.hostIp}:${b.host}/${proto}${alias ? ` (${alias})` : ""}`;
 }
 
 function initialPortBindings(template: DeployTemplate): PortBinding[] {
@@ -310,7 +312,17 @@ export default function DeployPage() {
 
   const updateBinding = (index: number, patch: Partial<PortBinding>) => {
     setPortBindings((prev) =>
-      prev.map((b, i) => (i === index ? { ...b, ...patch } : b)),
+      prev.map((b, i) => {
+        if (i !== index) return b;
+        const next = { ...b, ...patch };
+        if ("host" in patch && !("container" in patch)) {
+          next.container = patch.host ?? next.container;
+        }
+        if ("container" in patch && !("host" in patch)) {
+          next.host = patch.container ?? next.host;
+        }
+        return next;
+      }),
     );
   };
 
@@ -435,7 +447,7 @@ export default function DeployPage() {
                 </Labeled>
               )}
 
-              <Labeled label="Published ports (bind IP, host port, container port)">
+              <Labeled label="Published ports (bind IP, port)">
                 <div className="flex flex-col gap-3">
                   {portBindings.map((b, i) => (
                     <div key={i} className="rounded-lg border border-border bg-background/40 p-3">
@@ -453,20 +465,14 @@ export default function DeployPage() {
                           min={1}
                           max={65535}
                           value={b.host || ""}
-                          onChange={(e) => updateBinding(i, { host: Number(e.target.value) })}
-                          className={cn(numInputClass, "w-24")}
-                          placeholder="Host"
+                          onChange={(e) => {
+                            const port = Number(e.target.value);
+                            updateBinding(i, { host: port, container: port });
+                          }}
+                          className={cn(numInputClass, "w-28")}
+                          placeholder="Port"
                         />
-                        <span className="text-subtle">→</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={65535}
-                          value={b.container || ""}
-                          onChange={(e) => updateBinding(i, { container: Number(e.target.value) })}
-                          className={cn(numInputClass, "w-24")}
-                          placeholder="Container"
-                        />
+                        <span className="text-xs text-muted">TCP</span>
                         {allowsPortConfig(template.type) && portBindings.length > 1 && (
                           <Button
                             type="button"

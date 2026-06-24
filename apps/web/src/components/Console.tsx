@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { SearchAddon } from "@xterm/addon-search";
@@ -12,20 +12,26 @@ import {
   WrapText,
 } from "lucide-react";
 import { useTopic } from "@/hooks/useWebSocket";
+import { servicesApi } from "@/lib/api";
 import type { ConsolePayload } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface Props {
   serviceId: string;
+  /** When false, live streaming pauses (history is kept in the terminal buffer). */
+  active?: boolean;
   className?: string;
 }
 
-export function Console({ serviceId, className }: Props) {
+const HISTORY_LINES = 100;
+
+export function Console({ serviceId, active = true, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const searchRef = useRef<SearchAddon | null>(null);
+  const historyLoaded = useRef(false);
   const [ready, setReady] = useState(false);
   const [wrap, setWrap] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -77,11 +83,6 @@ export function Console({ serviceId, className }: Props) {
       } catch {
         /* container not measured yet */
       }
-      term.writeln(
-        "\x1b[2m── Vivox console · streaming service \x1b[0m\x1b[34m" +
-          serviceId +
-          "\x1b[0m\x1b[2m ──\x1b[0m",
-      );
 
       termRef.current = term;
       fitRef.current = fit;
@@ -104,8 +105,47 @@ export function Console({ serviceId, className }: Props) {
       termRef.current = null;
       fitRef.current = null;
       searchRef.current = null;
+      historyLoaded.current = false;
     };
   }, [serviceId]);
+
+  useEffect(() => {
+    if (!ready || historyLoaded.current) return;
+    historyLoaded.current = true;
+    const term = termRef.current;
+    if (!term) return;
+
+    void (async () => {
+      try {
+        const data = await servicesApi.logs(serviceId, "1h");
+        const lines = data.lines.slice(-HISTORY_LINES);
+        if (lines.length === 0) {
+          term.writeln(
+            "\x1b[2m── Vivox console · streaming service \x1b[0m\x1b[34m" +
+              serviceId +
+              "\x1b[0m\x1b[2m ──\x1b[0m",
+          );
+          return;
+        }
+        term.writeln(
+          `\x1b[2m── Last ${lines.length} log lines · live output below ──\x1b[0m`,
+        );
+        for (const line of lines) {
+          const text = line.line;
+          const colored =
+            line.s === "stderr" ? `\x1b[31m${text}\x1b[0m` : text;
+          term.writeln(colored);
+        }
+        term.writeln("\x1b[2m── Live ──\x1b[0m");
+      } catch {
+        term.writeln(
+          "\x1b[2m── Vivox console · streaming service \x1b[0m\x1b[34m" +
+            serviceId +
+            "\x1b[0m\x1b[2m ──\x1b[0m",
+        );
+      }
+    })();
+  }, [ready, serviceId]);
 
   useEffect(() => {
     if (!searchOpen || !ready) return;
@@ -123,7 +163,7 @@ export function Console({ serviceId, className }: Props) {
   }, [searchOpen, ready]);
 
   useTopic<ConsolePayload>(
-    ready ? `service:${serviceId}:console` : null,
+    ready && active ? `service:${serviceId}:console` : null,
     (payload) => {
       const term = termRef.current;
       if (!term || !payload) return;
@@ -174,6 +214,9 @@ export function Console({ serviceId, className }: Props) {
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         <TerminalIcon className="size-3.5 text-muted" />
         <span className="font-mono text-xs text-muted">console</span>
+        {!active && (
+          <span className="ml-2 text-[10px] text-subtle">(paused — switch back to resume live)</span>
+        )}
         <div className="ml-auto flex gap-1.5">
           <span className="size-2.5 rounded-full bg-red-500/70" />
           <span className="size-2.5 rounded-full bg-amber-500/70" />

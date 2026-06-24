@@ -1,36 +1,43 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Boxes, Rocket, Search, ShieldAlert, ExternalLink } from "lucide-react";
+import {
+  Boxes,
+  Rocket,
+  Search,
+  ShieldAlert,
+  ExternalLink,
+  X,
+  RotateCcw,
+  RefreshCw,
+  Trash2,
+  Power,
+} from "lucide-react";
 import { useApi } from "@/hooks/useApi";
-import { useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
-import { adminApi } from "@/lib/api";
+import { adminApi, servicesApi } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import type { Customer, Service } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ErrorBanner, Skeleton } from "@/components/ui/states";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatRelativeTime } from "@/lib/utils";
+import { toast } from "@/hooks/useToast";
+import { isTransient } from "@/lib/status";
 
 export default function AdminServersPage() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role;
 
-  const { data: services, loading, error } = useApi<Service[]>(() => adminApi.services(), []);
+  const { data: services, loading, error, refetch } = useApi<Service[]>(
+    () => adminApi.services(),
+    [],
+  );
   const { data: users } = useApi<Customer[]>(() => adminApi.customers(), []);
   const [query, setQuery] = useState("");
-  const statusMap = useLiveServiceStatuses(services ?? []);
-
-  const liveServices = useMemo(
-    () =>
-      (services ?? []).map((s) => ({
-        ...s,
-        status: statusMap.get(s.id) ?? s.status,
-      })),
-    [services, statusMap],
-  );
+  const [selected, setSelected] = useState<Service | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const userMap = useMemo(() => {
     const m = new Map<string, Customer>();
@@ -40,7 +47,7 @@ export default function AdminServersPage() {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    const list = liveServices;
+    const list = services ?? [];
     if (!q) return list;
     return list.filter((s) => {
       const owner = userMap.get(s.owner_id);
@@ -52,7 +59,28 @@ export default function AdminServersPage() {
         (owner?.email ?? "").toLowerCase().includes(q)
       );
     });
-  }, [liveServices, query, userMap]);
+  }, [services, query, userMap]);
+
+  const runAction = async (key: string, fn: () => Promise<unknown>, success: string) => {
+    if (!selected) return;
+    setBusy(key);
+    try {
+      await fn();
+      toast(success, "success");
+      await refetch();
+      if (key === "delete" || key === "force-delete") {
+        setSelected(null);
+        return;
+      }
+      setSelected((cur) =>
+        cur ? (services ?? []).find((s) => s.id === cur.id) ?? cur : null,
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Action failed", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   if (role !== undefined && role !== "admin") {
     return (
@@ -77,7 +105,7 @@ export default function AdminServersPage() {
         </div>
       </div>
 
-      {(liveServices.length ?? 0) > 0 && (
+      {(services?.length ?? 0) > 0 && (
         <div className="relative max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
@@ -97,7 +125,7 @@ export default function AdminServersPage() {
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-14 text-center">
           <Boxes className="size-8 text-muted" />
           <p className="text-sm text-muted">
-            {liveServices.length ? "No servers match your search." : "No servers deployed yet."}
+            {(services?.length ?? 0) ? "No servers match your search." : "No servers deployed yet."}
           </p>
           <Link href="/deploy">
             <Button size="sm" actionType="deploy">
@@ -115,7 +143,6 @@ export default function AdminServersPage() {
                 <th className="px-3 py-2.5 font-medium">Type</th>
                 <th className="px-3 py-2.5 font-medium">Status</th>
                 <th className="hidden px-3 py-2.5 font-medium lg:table-cell">Created</th>
-                <th className="px-3 py-2.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -126,7 +153,11 @@ export default function AdminServersPage() {
                     layout
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="transition-colors hover:bg-surface-raised/60"
+                    onClick={() => setSelected(svc)}
+                    className={cn(
+                      "cursor-pointer transition-colors hover:bg-surface-raised/60",
+                      selected?.id === svc.id && "bg-surface-raised/80",
+                    )}
                   >
                     <td className="px-3 py-2.5 font-medium text-foreground">{svc.name}</td>
                     <td className="hidden px-3 py-2.5 text-muted sm:table-cell">
@@ -139,16 +170,6 @@ export default function AdminServersPage() {
                     <td className="hidden px-3 py-2.5 text-muted lg:table-cell">
                       {formatRelativeTime(svc.created_at)}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <Link
-                        href={`/services/${svc.id}`}
-                        className={cn(
-                          "inline-flex items-center gap-1 text-xs text-vivox-500 hover:text-vivox-400",
-                        )}
-                      >
-                        Open <ExternalLink className="size-3" />
-                      </Link>
-                    </td>
                   </motion.tr>
                 ))}
               </AnimatePresence>
@@ -156,6 +177,149 @@ export default function AdminServersPage() {
           </table>
         </div>
       )}
+
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="rounded-xl border border-border bg-surface p-5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">{selected.name}</h2>
+                <p className="mt-1 text-xs text-muted">
+                  {userMap.get(selected.owner_id)?.email ?? selected.owner_id} · {selected.type} ·{" "}
+                  <StatusBadge status={selected.status} />
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/services/${selected.id}`}
+                  className="inline-flex items-center gap-1 text-xs text-vivox-500 hover:text-vivox-400"
+                >
+                  Open panel <ExternalLink className="size-3" />
+                </Link>
+                <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
+                  <X className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs uppercase tracking-wider text-muted">Admin actions</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <AdminAction
+                label="Reinstall"
+                icon={<RefreshCw className="size-3.5" />}
+                busy={busy === "reinstall"}
+                disabled={isTransient(selected.status)}
+                onClick={() =>
+                  runAction("reinstall", () => servicesApi.redeploy(selected.id), "Reinstall queued")
+                }
+              />
+              <AdminAction
+                label="Force reinstall"
+                icon={<RefreshCw className="size-3.5" />}
+                busy={busy === "force-reinstall"}
+                onClick={() =>
+                  runAction(
+                    "force-reinstall",
+                    () => servicesApi.reinstall(selected.id),
+                    "Force reinstall queued",
+                  )
+                }
+              />
+              <AdminAction
+                label="Reset"
+                icon={<RotateCcw className="size-3.5" />}
+                busy={busy === "reset"}
+                disabled={isTransient(selected.status)}
+                onClick={() =>
+                  runAction("reset", () => servicesApi.restart(selected.id), "Restart sent")
+                }
+              />
+              <AdminAction
+                label="Force reset"
+                icon={<Power className="size-3.5" />}
+                busy={busy === "force-reset"}
+                onClick={() =>
+                  runAction("force-reset", async () => {
+                    await servicesApi.stop(selected.id);
+                    await servicesApi.redeploy(selected.id);
+                  }, "Stop + redeploy queued")
+                }
+              />
+              <AdminAction
+                label="Delete"
+                icon={<Trash2 className="size-3.5" />}
+                variant="danger"
+                busy={busy === "delete"}
+                disabled={isTransient(selected.status)}
+                onClick={() => {
+                  if (!confirm(`Delete "${selected.name}"? This cannot be undone.`)) return;
+                  void runAction("delete", () => servicesApi.remove(selected.id), "Server deleted");
+                }}
+              />
+              <AdminAction
+                label="Force delete"
+                icon={<Trash2 className="size-3.5" />}
+                variant="danger"
+                busy={busy === "force-delete"}
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `Force delete "${selected.name}"? Stops the container and removes all configuration immediately.`,
+                    )
+                  )
+                    return;
+                  void runAction(
+                    "force-delete",
+                    async () => {
+                      try {
+                        await servicesApi.stop(selected.id);
+                      } catch {
+                        /* best effort */
+                      }
+                      await servicesApi.remove(selected.id);
+                    },
+                    "Server force deleted",
+                  );
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function AdminAction({
+  label,
+  icon,
+  onClick,
+  busy,
+  disabled,
+  variant = "default",
+}: {
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+  busy?: boolean;
+  disabled?: boolean;
+  variant?: "default" | "danger";
+}) {
+  return (
+    <Button
+      size="sm"
+      variant={variant === "danger" ? "danger" : "secondary"}
+      loading={busy}
+      disabled={disabled || busy}
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+    </Button>
   );
 }

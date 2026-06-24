@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useWebSocket, type WsStatus } from "@/hooks/useWebSocket";
 import { cn } from "@/lib/utils";
@@ -11,8 +12,25 @@ const META: Record<WsStatus, { label: string; color: string; pulse: boolean }> =
   error: { label: "Error", color: "rgb(var(--status-crashed))", pulse: false },
 };
 
-export function WsStatusIndicator({ className }: { className?: string }) {
+/** Debounce transient disconnects so the badge does not flash Offline/Live. */
+function useStableWsStatus(delayMs = 1200): WsStatus {
   const { status } = useWebSocket();
+  const [displayed, setDisplayed] = useState<WsStatus>(status);
+
+  useEffect(() => {
+    if (status === "open" || status === "connecting") {
+      setDisplayed(status);
+      return;
+    }
+    const timer = setTimeout(() => setDisplayed(status), delayMs);
+    return () => clearTimeout(timer);
+  }, [status, delayMs]);
+
+  return displayed;
+}
+
+export function WsStatusIndicator({ className }: { className?: string }) {
+  const status = useStableWsStatus();
   const meta = META[status];
 
   return (

@@ -6,21 +6,13 @@ export const DEPLOY_TEMPLATES: DeployTemplate[] = [
     id: "minecraft",
     name: "Minecraft Server",
     type: "game",
-    description: "itzg/minecraft-server with configurable RAM and EULA.",
+    description: "Java Edition Minecraft server with configurable RAM and framework.",
     defaultImage: "itzg/minecraft-server:latest",
     defaultPorts: ["25565:25565"],
     defaultMemoryMb: 2048,
     defaultCpuThreads: 1,
     defaultDiskGb: 10,
     env: [
-      {
-        key: "EULA",
-        label: "Accept EULA",
-        value: "TRUE",
-        required: true,
-        description: "Must be TRUE to run the official Minecraft server image.",
-        options: "TRUE",
-      },
       {
         key: "MEMORY",
         label: "JVM heap",

@@ -68,8 +68,10 @@ function isTextContent(text: string): boolean {
   return !text.includes("\0");
 }
 
+const SERVER_ROOT = "/mnt/server";
+
 export function FileManager({ serviceId }: { serviceId: string }) {
-  const [currentPath, setCurrentPath] = useState("/");
+  const [currentPath, setCurrentPath] = useState(SERVER_ROOT);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState("");
@@ -129,14 +131,17 @@ export function FileManager({ serviceId }: { serviceId: string }) {
     }
   }, [fileContent, editMode]);
 
-  const segments = currentPath.split("/").filter(Boolean);
+  const segments = currentPath
+    .slice(SERVER_ROOT.length)
+    .split("/")
+    .filter(Boolean);
 
   const navigateTo = (index: number) => {
     if (index < 0) {
-      setCurrentPath("/");
+      setCurrentPath(SERVER_ROOT);
       return;
     }
-    setCurrentPath("/" + segments.slice(0, index + 1).join("/"));
+    setCurrentPath(`${SERVER_ROOT}/${segments.slice(0, index + 1).join("/")}`);
     setSelectedFile(null);
     setFileContent(null);
     setEditMode(false);
@@ -151,7 +156,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
       <div className="flex min-w-0 flex-1 flex-col border-b border-border lg:border-b-0 lg:border-r">
         <div className="flex flex-wrap items-center gap-1 border-b border-border px-3 py-2 text-xs">
           <button type="button" className="text-muted hover:text-foreground" onClick={() => navigateTo(-1)}>
-            /
+            server
           </button>
           {segments.map((seg, i) => (
             <span key={i} className="flex items-center gap-1">
@@ -191,12 +196,15 @@ export function FileManager({ serviceId }: { serviceId: string }) {
           ) : (
             <table className="w-full text-sm">
               <tbody>
-                {currentPath !== "/" && (
+                {currentPath !== SERVER_ROOT && (
                   <tr
                     className="cursor-pointer border-b border-border/50 hover:bg-surface-raised/50"
                     onClick={() => {
-                      const parent = "/" + segments.slice(0, -1).join("/");
-                      setCurrentPath(parent === "/" ? "/" : parent.replace(/\/$/, "") || "/");
+                      const parent =
+                        segments.length <= 1
+                          ? SERVER_ROOT
+                          : `${SERVER_ROOT}/${segments.slice(0, -1).join("/")}`;
+                      setCurrentPath(parent);
                       setSelectedFile(null);
                       setFileContent(null);
                       setEditMode(false);
@@ -208,10 +216,7 @@ export function FileManager({ serviceId }: { serviceId: string }) {
                   </tr>
                 )}
                 {entries.map((entry) => {
-                  const fullPath =
-                    currentPath === "/"
-                      ? `/${entry.name}`
-                      : `${currentPath.replace(/\/$/, "")}/${entry.name}`;
+                  const fullPath = `${currentPath.replace(/\/$/, "")}/${entry.name}`;
                   return (
                     <motion.tr
                       key={entry.name}

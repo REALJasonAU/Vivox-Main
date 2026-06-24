@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/base64"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -41,6 +43,19 @@ func toFileEntryViews(entries []*gen.FileEntry) []fileEntryView {
 	return out
 }
 
+const serviceDataRoot = "/mnt/server"
+
+func validateServiceFilePath(path string) (string, error) {
+	if path == "" {
+		return "", fiber.NewError(fiber.StatusBadRequest, "path is required")
+	}
+	clean := filepath.Clean(path)
+	if clean != serviceDataRoot && !strings.HasPrefix(clean, serviceDataRoot+"/") {
+		return "", fiber.NewError(fiber.StatusForbidden, "path must be under /mnt/server")
+	}
+	return clean, nil
+}
+
 func (a *api) dispatchFileCommand(svc db.Service, env *gen.DownstreamEnvelope) (filestrack.Result, error) {
 	return a.dispatchFileCommandWithTimeout(svc, env, 10*time.Second)
 }
@@ -76,12 +91,16 @@ func (a *api) listFiles(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	path := c.Query("path", "/")
+	path := c.Query("path", serviceDataRoot)
+	safe, err := validateServiceFilePath(path)
+	if err != nil {
+		return err
+	}
 	result, err := a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
 		Action: &gen.DownstreamEnvelope_ListFiles{
 			ListFiles: &gen.FileListTask{
 				ServiceId: service.UUIDString(svc.ID),
-				Path:      path,
+				Path:      safe,
 			},
 		},
 	})
@@ -100,14 +119,15 @@ func (a *api) readFile(c *fiber.Ctx) error {
 		return err
 	}
 	path := c.Query("path")
-	if path == "" {
-		return fiber.NewError(fiber.StatusBadRequest, "path is required")
+	safe, err := validateServiceFilePath(path)
+	if err != nil {
+		return err
 	}
 	result, err := a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
 		Action: &gen.DownstreamEnvelope_ReadFile{
 			ReadFile: &gen.FileReadTask{
 				ServiceId: service.UUIDString(svc.ID),
-				Path:      path,
+				Path:      safe,
 			},
 		},
 	})
@@ -140,6 +160,10 @@ func (a *api) writeFile(c *fiber.Ctx) error {
 	if req.Path == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "path is required")
 	}
+	safe, err := validateServiceFilePath(req.Path)
+	if err != nil {
+		return err
+	}
 	data, err := base64.StdEncoding.DecodeString(req.Content)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid base64 content")
@@ -148,7 +172,7 @@ func (a *api) writeFile(c *fiber.Ctx) error {
 		Action: &gen.DownstreamEnvelope_WriteFile{
 			WriteFile: &gen.FileWriteTask{
 				ServiceId: service.UUIDString(svc.ID),
-				Path:      req.Path,
+				Path:      safe,
 				Content:   data,
 			},
 		},

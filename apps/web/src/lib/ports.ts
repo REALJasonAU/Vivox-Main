@@ -125,3 +125,46 @@ export function isValidHostIp(ip: string): boolean {
     /^(25[0-5]|2[0-4]\d|[01]?\d?\d)(\.(25[0-5]|2[0-4]\d|[01]?\d?\d)){3}$/;
   return ipv4.test(v);
 }
+
+export interface PortDisplay {
+  label: string;
+  detail: string;
+  isMain: boolean;
+}
+
+/** Human-readable port list with main vs additional allocations. */
+export function portsForDisplay(config: {
+  ports?: string[];
+  port_mappings?: PortMapping[];
+  main_port?: number;
+}): PortDisplay[] {
+  const mappings =
+    config.port_mappings && config.port_mappings.length > 0
+      ? config.port_mappings
+      : (config.ports ?? []).map((p) => portBindingToMapping(parsePortBinding(p.split(" (")[0] ?? p)));
+
+  const mainContainer = config.main_port;
+  const out: PortDisplay[] = [];
+
+  for (const m of mappings) {
+    const b = mappingToPortBinding(m);
+    const proto = (b.proto || "tcp").toLowerCase();
+    const isMain =
+      m.alias === "main" ||
+      (mainContainer != null && mainContainer > 0 && b.container === mainContainer);
+    const host = b.host > 0 ? b.host : b.container;
+    const bindIp = b.hostIp && b.hostIp !== "0.0.0.0" ? `${b.hostIp}:` : "";
+    const label = `${bindIp}${host}/${proto}`;
+    const alias = m.alias?.trim();
+    const detail = isMain
+      ? "Main port"
+      : alias
+        ? `Allocation · ${alias}`
+        : "Additional port";
+    out.push({ label, detail, isMain });
+  }
+
+  if (out.length === 0) return out;
+  out.sort((a, b) => (a.isMain === b.isMain ? 0 : a.isMain ? -1 : 1));
+  return out;
+}

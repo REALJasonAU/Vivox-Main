@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
   Area,
@@ -21,6 +21,7 @@ interface Point {
   t: number;
   cpu: number;
   mem: number;
+  memBytes: number;
 }
 
 type Range = "live" | "15m" | "1h" | "6h" | "24h";
@@ -28,22 +29,42 @@ type Range = "live" | "15m" | "1h" | "6h" | "24h";
 const MAX_POINTS = 60;
 const RANGES: Range[] = ["live", "15m", "1h", "6h", "24h"];
 
-export function MetricsChart({ serviceId }: { serviceId: string }) {
+export function MetricsChart({
+  serviceId,
+  memoryLimitMb,
+}: {
+  serviceId: string;
+  memoryLimitMb?: number;
+}) {
   const [range, setRange] = useState<Range>("live");
   const [livePoints, setLivePoints] = useState<Point[]>([]);
   const [histPoints, setHistPoints] = useState<Point[]>([]);
   const [histLoading, setHistLoading] = useState(false);
 
+  const memLimitBytes = useMemo(
+    () => (memoryLimitMb && memoryLimitMb > 0 ? memoryLimitMb * 1024 * 1024 : 0),
+    [memoryLimitMb],
+  );
+
+  const toMemChartValue = (bytes: number) => {
+    if (memLimitBytes > 0) {
+      return Number(((bytes / memLimitBytes) * 100).toFixed(1));
+    }
+    return bytes;
+  };
+
   useTopic<MetricsPayload>(`service:${serviceId}:metrics`, (payload) => {
     if (range !== "live") return;
     if (!payload || typeof payload.cpu_usage_percent !== "number") return;
+    const memBytes = payload.memory_bytes_used ?? 0;
     setLivePoints((prev) => {
       const next = [
         ...prev,
         {
           t: payload.timestamp || Date.now(),
           cpu: Number(payload.cpu_usage_percent.toFixed(1)),
-          mem: payload.memory_bytes_used,
+          mem: toMemChartValue(memBytes),
+          memBytes,
         },
       ];
       return next.length > MAX_POINTS ? next.slice(-MAX_POINTS) : next;
@@ -58,14 +79,30 @@ export function MetricsChart({ serviceId }: { serviceId: string }) {
     setHistLoading(true);
     servicesApi
       .metrics(serviceId, range)
-      .then(setHistPoints)
+      .then((rows) =>
+        setHistPoints(
+          rows.map((r) => ({
+            t: r.t,
+            cpu: r.cpu,
+            memBytes: r.mem,
+            mem: toMemChartValue(r.mem),
+          })),
+        ),
+      )
       .catch(() => setHistPoints([]))
       .finally(() => setHistLoading(false));
-  }, [range, serviceId]);
+  }, [range, serviceId, memLimitBytes]);
 
   const points = range === "live" ? livePoints : histPoints;
   const latest = points[points.length - 1];
   const loading = range !== "live" && histLoading;
+  const memAsPercent = memLimitBytes > 0;
+
+  const memDisplay = latest
+    ? memAsPercent
+      ? `${latest.mem}%`
+      : formatBytes(latest.memBytes)
+    : "—";
 
   return (
     <div className="flex flex-col gap-4">
@@ -105,19 +142,22 @@ export function MetricsChart({ serviceId }: { serviceId: string }) {
             <Skeleton className="h-[196px] rounded-xl" />
           </div>
         )}
-        <Panel
-          icon={<Cpu className="size-4" />}
-          title="CPU"
-          value={latest ? `${latest.cpu}%` : "—"}
-        >
-          <Chart data={points} dataKey="cpu" color="229 24 27" unit="%" />
+        <Panel icon={<Cpu className="size-4" />} title="CPU" value={latest ? `${latest.cpu}%` : "—"}>
+          <Chart data={points} dataKey="cpu" color="229 24 27" unit="%" domain={[0, 100]} />
         </Panel>
-        <Panel
-          icon={<MemoryStick className="size-4" />}
-          title="Memory"
-          value={latest ? formatBytes(latest.mem) : "—"}
-        >
-          <Chart data={points} dataKey="mem" color="16 185 129" formatBytes />
+        <Panel icon={<MemoryStick className="size-4" />} title="Memory" value={memDisplay}>
+          <Chart
+            data={points}
+            dataKey="mem"
+            color="16 185 129"
+            unit={memAsPercent ? "%" : undefined}
+            domain={memAsPercent ? [0, 100] : undefined}
+            formatTooltip={(v, point) =>
+              memAsPercent
+                ? `${v}% (${formatBytes(point.memBytes)})`
+                : formatBytes(point.memBytes)
+            }
+          />
         </Panel>
       </div>
     </div>
@@ -156,13 +196,15 @@ function Chart({
   dataKey,
   color,
   unit,
-  formatBytes: asBytes,
+  domain,
+  formatTooltip,
 }: {
   data: Point[];
   dataKey: "cpu" | "mem";
   color: string;
   unit?: string;
-  formatBytes?: boolean;
+  domain?: [number, number];
+  formatTooltip?: (value: number, point: Point) => string;
 }) {
   if (data.length === 0) {
     return (
@@ -183,7 +225,7 @@ function Chart({
           </linearGradient>
         </defs>
         <XAxis dataKey="t" hide />
-        <YAxis hide domain={dataKey === "cpu" ? [0, 100] : ["auto", "auto"]} />
+        <YAxis hide domain={domain ?? (dataKey === "cpu" ? [0, 100] : ["auto", "auto"])} />
         <Tooltip
           contentStyle={{
             background: "#18181b",
@@ -193,10 +235,11 @@ function Chart({
             color: "#f4f4f5",
           }}
           labelFormatter={() => ""}
-          formatter={(v: number) => [
-            asBytes ? formatBytesValue(v) : `${v}${unit ?? ""}`,
-            dataKey === "cpu" ? "CPU" : "Memory",
-          ]}
+          formatter={(v: number, _name, item) => {
+            const point = item.payload as Point;
+            if (formatTooltip) return [formatTooltip(v, point), dataKey === "cpu" ? "CPU" : "Memory"];
+            return [`${v}${unit ?? ""}`, dataKey === "cpu" ? "CPU" : "Memory"];
+          }}
         />
         <Area
           type="monotone"
@@ -209,8 +252,4 @@ function Chart({
       </AreaChart>
     </ResponsiveContainer>
   );
-}
-
-function formatBytesValue(bytes: number): string {
-  return formatBytes(bytes);
 }

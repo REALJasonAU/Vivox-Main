@@ -7,9 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import Link from "next/link";
 
-import { useRouter } from "next/navigation";
-
-import { ArrowLeft, Trash2, Save, Gamepad2, Globe, ArrowRightLeft, X } from "lucide-react";
+import { ArrowLeft, Save, Globe, X } from "lucide-react";
 
 import { servicesApi } from "@/lib/api";
 
@@ -17,16 +15,14 @@ import { useApi } from "@/hooks/useApi";
 
 import { useTopic } from "@/hooks/useWebSocket";
 
-import type { Deployment, Service, ServiceDomain, StatusPayload } from "@/lib/types";
+import type { Service, ServiceDomain, StatusPayload } from "@/lib/types";
 
 import { STATUS_META, isTransient } from "@/lib/status";
-import { displayPortsFromConfig, parsePortBinding } from "@/lib/ports";
+import { portsForDisplay } from "@/lib/ports";
 
 import { Console } from "@/components/Console";
 
-import { ExecTerminal } from "@/components/ExecTerminal";
-
-import { EnvTab } from "@/components/env-tab";
+import { StartupTab } from "@/components/env-tab";
 
 import { FileManager } from "@/components/FileManager";
 
@@ -55,24 +51,6 @@ import { ErrorBanner, Skeleton } from "@/components/ui/states";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { toast } from "@/hooks/useToast";
 
-
-
-const BASE_TABS = [
-  "Overview",
-  "Console",
-  "Terminal",
-  "Logs",
-] as const;
-
-const TAIL_TABS = [
-  "Env",
-  "Schedule",
-  "Deployments",
-  "Backups",
-  "Files",
-  "Settings",
-] as const;
-
 function isRustFramework(fw: string): boolean {
   const fwLower = fw.toLowerCase();
   return ["oxide", "carbon", "carbon-minimal", "vanilla"].includes(fwLower);
@@ -97,6 +75,11 @@ function showRustConfigTab(service: Service): boolean {
   return service.type === "game" && isRustFramework(fw) && fw.toLowerCase() !== "vanilla";
 }
 
+function isMinecraftGame(service: Service): boolean {
+  const fw = service.config?.environment?.FRAMEWORK ?? "";
+  return service.type === "game" && isMinecraftFramework(fw);
+}
+
 function buildServiceTabs(service: Service): string[] {
   const fw = service.config?.environment?.FRAMEWORK ?? "";
   const showPluginTab = showRustPluginTab(service) || showMcPluginTab(service);
@@ -106,10 +89,16 @@ function buildServiceTabs(service: Service): string[] {
       ? "Mods"
       : "Plugins";
   return [
-    ...BASE_TABS,
+    "Overview",
     ...(showPluginTab ? [pluginTabLabel] : []),
     ...(showRustConfigTab(service) ? ["Config"] : []),
-    ...TAIL_TABS,
+    "Console",
+    "Files",
+    "Schedule",
+    "Backups",
+    "Startup",
+    "Logs",
+    "Settings",
   ];
 }
 
@@ -149,7 +138,10 @@ export default function ServiceDetailPage({
 
   const [tab, setTab] = useState("Overview");
   const tabs = useMemo(
-    () => (service ? buildServiceTabs(service) : [...BASE_TABS, ...TAIL_TABS]),
+    () =>
+      service
+        ? buildServiceTabs(service)
+        : ["Overview", "Console", "Files", "Schedule", "Backups", "Startup", "Logs", "Settings"],
     [service],
   );
   const pluginTab = service ? pluginTabLabelFor(service) : null;
@@ -288,9 +280,14 @@ export default function ServiceDetailPage({
           exit={{ opacity: 0, x: direction * -10 }}
           transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
         >
+          <div className={tab === "Console" ? undefined : "hidden"}>
+            <Console serviceId={service.id} active={tab === "Console"} />
+          </div>
           {tab === "Overview" && <OverviewTab service={service} refetch={refetch} />}
-          {tab === "Console" && <Console serviceId={service.id} />}
-          {tab === "Terminal" && <ExecTerminal serviceId={service.id} />}
+          {tab === "Files" && <FileManager serviceId={service.id} />}
+          {tab === "Schedule" && <ScheduleTab serviceId={service.id} />}
+          {tab === "Backups" && <BackupsTab serviceId={service.id} />}
+          {tab === "Startup" && <StartupTab service={service} onChanged={setService} />}
           {tab === "Logs" && <LogsFeed serviceId={service.id} />}
           {pluginTab && tab === pluginTab && showRustPluginTab(service) && (
             <RustPluginManager service={service} />
@@ -301,12 +298,9 @@ export default function ServiceDetailPage({
           {tab === "Config" && showRustConfigTab(service) && (
             <ServerCfgEditor service={service} />
           )}
-          {tab === "Env" && <EnvTab service={service} onChanged={setService} />}
-          {tab === "Schedule" && <ScheduleTab serviceId={service.id} />}
-          {tab === "Deployments" && <DeploymentsTab serviceId={service.id} />}
-          {tab === "Backups" && <BackupsTab serviceId={service.id} />}
-          {tab === "Files" && <FileManager serviceId={service.id} />}
-          {tab === "Settings" && <SettingsTab service={service} onChanged={setService} />}
+          {tab === "Settings" && (
+            <SettingsTab service={service} onChanged={setService} showDomains={!isMinecraftGame(service)} />
+          )}
         </motion.div>
       </AnimatePresence>
 
@@ -393,47 +387,56 @@ function TabBar({
 
 
 function OverviewTab({ service, refetch }: { service: Service; refetch: () => void }) {
-  const portLines = displayPortsFromConfig(service.config);
+  const portItems = portsForDisplay(service.config);
 
   return (
-
     <div className="flex flex-col gap-4">
-
       <HealthIndicator serviceId={service.id} />
 
-      <MetricsChart serviceId={service.id} />
+      <MetricsChart
+        serviceId={service.id}
+        memoryLimitMb={service.resource_limits.memory_mb}
+      />
 
       <AlertsSection service={service} />
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-surface sm:grid-cols-4">
-
-        <Fact label="Type" value={service.type} />
-
-        <Fact label="Region / Node" value={service.node_id ?? "unassigned"} />
-
-        <Fact label="Memory" value={`${service.resource_limits.memory_mb} MB`} />
-
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-surface sm:grid-cols-2">
+        <Fact label="Memory limit" value={`${service.resource_limits.memory_mb} MB`} />
         <Fact label="CPU shares" value={String(service.resource_limits.cpu_shares)} />
-
-        {service.config.image && <Fact label="Image" value={service.config.image} />}
-
-        {portLines.length > 0 && <Fact label="Ports" value={portLines.join(", ")} />}
-
       </div>
 
-      {portLines.length > 0 && <PortCards ports={portLines} status={service.status} />}
+      {portItems.length > 0 && <PortsOverview ports={portItems} />}
 
       {service.type === "game" &&
         service.config?.environment?.FRAMEWORK !== undefined && (
           <MinecraftSwitcher service={service} onSwitched={refetch} />
         )}
-
-      <DomainsSection service={service} />
-
     </div>
-
   );
+}
 
+function PortsOverview({ ports }: { ports: ReturnType<typeof portsForDisplay> }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-sm font-medium text-foreground">Ports</h3>
+      <div className="mt-3 flex flex-col gap-2">
+        {ports.map((p) => (
+          <div
+            key={p.label}
+            className={cn(
+              "flex items-center justify-between rounded-lg border px-3 py-2",
+              p.isMain ? "border-vivox-500/30 bg-vivox-500/5" : "border-border bg-background/40",
+            )}
+          >
+            <span className="font-mono text-sm text-foreground">{p.label}</span>
+            <span className={cn("text-xs", p.isMain ? "text-vivox-400" : "text-muted")}>
+              {p.detail}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 
@@ -549,55 +552,6 @@ function DomainStatusDot({ status }: { status: ServiceDomain["status"] }) {
 
 
 
-function PortCards({ ports, status }: { ports: string[]; status: string }) {
-  const isUp = status === "RUNNING";
-  const httpPorts = ["80", "443", "3000", "4000", "5000", "8000", "8080", "8443", "8888"];
-  const gamePorts = ["25565", "7777", "19132"];
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {ports.map((p) => {
-        const binding = parsePortBinding(p.split(" (")[0] ?? p);
-        const hostPort = String(binding.host);
-        const containerPort = String(binding.container);
-        const isHttp = httpPorts.includes(hostPort);
-        const isGame = gamePorts.includes(hostPort);
-        const protocol = (binding.proto ?? "tcp").toUpperCase();
-        const aliasMatch = p.match(/ \(([^)]+)\)$/);
-        const alias = aliasMatch?.[1];
-
-        return (
-          <div
-            key={p}
-            className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2"
-          >
-            {isGame && <Gamepad2 className="size-3.5 text-emerald-400" />}
-            {isHttp && <Globe className="size-3.5 text-blue-400" />}
-            {!isGame && !isHttp && <ArrowRightLeft className="size-3.5 text-muted" />}
-            {binding.hostIp && binding.hostIp !== "0.0.0.0" && (
-              <span className="font-mono text-xs text-muted">{binding.hostIp}:</span>
-            )}
-            <span className="font-mono text-xs text-foreground">{hostPort}</span>
-            <span className="text-xs text-subtle">→ {containerPort}</span>
-            <span className="text-xs text-subtle">{protocol}</span>
-            {alias && <span className="text-xs text-vivox-400">{alias}</span>}
-            {isHttp && isUp && (
-              <a
-                href={`http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:${hostPort}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-1 text-xs text-vivox-400 hover:underline"
-              >
-                Open ↗
-              </a>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function Fact({ label, value }: { label: string; value: string }) {
 
   return (
@@ -617,25 +571,14 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 
 function SettingsTab({
-
   service,
-
   onChanged,
-
+  showDomains = true,
 }: {
-
   service: Service;
-
   onChanged: (s: Service) => void;
-
+  showDomains?: boolean;
 }) {
-
-  const router = useRouter();
-
-  const [deleting, setDeleting] = useState(false);
-
-  const [confirm, setConfirm] = useState(false);
-
   const [editing, setEditing] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -649,7 +592,6 @@ function SettingsTab({
   const [savingConfig, setSavingConfig] = useState(false);
   const [imageInput, setImageInput] = useState(service.config.image ?? "");
   const [cmdInput, setCmdInput] = useState(service.config.startup_cmd ?? "");
-  const [deleteSuccess, setDeleteSuccess] = useState(false);
   const [editingHealth, setEditingHealth] = useState(false);
   const [savingHealth, setSavingHealth] = useState(false);
   const [healthPath, setHealthPath] = useState(service.config.health_check?.path ?? "/health");
@@ -657,22 +599,14 @@ function SettingsTab({
   const [healthInterval, setHealthInterval] = useState(service.config.health_check?.interval ?? 30);
   const [healthTimeout, setHealthTimeout] = useState(service.config.health_check?.timeout ?? 5);
   const [healthEnabled, setHealthEnabled] = useState(Boolean(service.config.health_check?.path));
-  const [tags, setTags] = useState<string[]>(service.tags ?? []);
-  const [tagInput, setTagInput] = useState("");
-  const tagsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const locked = isTransient(service.status);
 
   const canSave = memMB > 0 && cpuShares > 0 && diskGB > 0 && !locked;
 
-
-
   useEffect(() => {
-
     setMemMB(service.resource_limits.memory_mb);
-
     setCpuShares(service.resource_limits.cpu_shares);
-
     setDiskGB(service.resource_limits.disk_gb);
     setImageInput(service.config.image ?? "");
     setCmdInput(service.config.startup_cmd ?? "");
@@ -681,38 +615,7 @@ function SettingsTab({
     setHealthInterval(service.config.health_check?.interval ?? 30);
     setHealthTimeout(service.config.health_check?.timeout ?? 5);
     setHealthEnabled(Boolean(service.config.health_check?.path));
-    setTags(service.tags ?? []);
-  }, [service.resource_limits, service.config.image, service.config.startup_cmd, service.config.health_check, service.tags]);
-
-  const persistTags = useCallback(
-    (next: string[]) => {
-      if (tagsSaveTimer.current) clearTimeout(tagsSaveTimer.current);
-      tagsSaveTimer.current = setTimeout(async () => {
-        try {
-          const updated = await servicesApi.updateTags(service.id, next);
-          onChanged(updated);
-        } catch (e) {
-          toast(e instanceof Error ? e.message : "Failed to save tags", "error");
-        }
-      }, 500);
-    },
-    [service.id, onChanged],
-  );
-
-  const addTag = (raw: string) => {
-    const t = raw.toLowerCase().trim().slice(0, 20);
-    if (!t || tags.includes(t) || tags.length >= 10) return;
-    const next = [...tags, t];
-    setTags(next);
-    persistTags(next);
-    setTagInput("");
-  };
-
-  const removeTag = (tag: string) => {
-    const next = tags.filter((x) => x !== tag);
-    setTags(next);
-    persistTags(next);
-  };
+  }, [service.resource_limits, service.config.image, service.config.startup_cmd, service.config.health_check]);
 
   const cancelEdit = () => {
     setMemMB(service.resource_limits.memory_mb);
@@ -801,64 +704,9 @@ function SettingsTab({
 
   };
 
-
-
-  const remove = async () => {
-    setDeleting(true);
-    try {
-      await servicesApi.remove(service.id);
-      setDeleteSuccess(true);
-      await new Promise((r) => setTimeout(r, 400));
-      router.push("/dashboard");
-    } catch {
-      setDeleting(false);
-    }
-  };
-
   return (
-    <motion.div
-      animate={deleteSuccess ? { opacity: 0, scale: 0.96, y: 8 } : {}}
-      transition={{ duration: 0.3 }}
-      className="flex flex-col gap-4"
-    >
-
-      <div className="rounded-xl border border-border bg-surface p-5">
-        <h3 className="text-sm font-medium text-foreground">Tags</h3>
-        <p className="mt-1 text-xs text-muted">Organize services on the dashboard. Up to 10 tags.</p>
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1 rounded-full border border-border-focus bg-surface-raised px-2.5 py-0.5 text-xs text-foreground"
-            >
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                className="text-muted hover:text-foreground"
-                aria-label={`Remove tag ${tag}`}
-              >
-                <X className="size-3" />
-              </button>
-            </span>
-          ))}
-          {tags.length < 10 && (
-            <input
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTag(tagInput);
-                }
-              }}
-              placeholder="Add tag…"
-              className={cn(inputClass, "h-8 w-28 px-2 text-xs")}
-            />
-          )}
-        </div>
-      </div>
-
+    <div className="flex flex-col gap-4">
+      {showDomains && <DomainsSection service={service} />}
       <div className="rounded-xl border border-border bg-surface p-5">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-medium text-foreground">Image & startup</h3>
@@ -1080,55 +928,7 @@ function SettingsTab({
 
       </div>
 
-
-
-      <motion.div
-        animate={
-          confirm
-            ? {
-                boxShadow: [
-                  "0 0 0 0 rgba(239,68,68,0)",
-                  "0 0 0 6px rgba(239,68,68,0.2)",
-                  "0 0 0 0 rgba(239,68,68,0)",
-                ],
-                borderColor: [
-                  "rgba(239,68,68,0.3)",
-                  "rgba(239,68,68,0.7)",
-                  "rgba(239,68,68,0.3)",
-                ],
-              }
-            : {}
-        }
-        transition={{ duration: 0.8, repeat: confirm ? Infinity : 0 }}
-        className="rounded-xl border border-red-500/30 bg-red-500/5 p-5"
-      >
-        <h3 className="text-sm font-medium text-red-400">Danger zone</h3>
-        <p className="mt-1 text-xs text-muted">
-          Deleting a service stops its container and removes all configuration.
-        </p>
-        <motion.div
-          className="mt-3"
-          animate={confirm ? { x: [0, -5, 5, -4, 4, -2, 2, 0] } : {}}
-          transition={{ duration: 0.4, ease: "easeInOut" }}
-        >
-          {confirm ? (
-            <div className="flex items-center gap-2">
-              <Button variant="danger" size="sm" actionType="delete" loading={deleting} onClick={remove}>
-                <Trash2 className="size-3.5" /> Confirm delete
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirm(false)}>
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button variant="danger" size="sm" actionType="delete" onClick={() => setConfirm(true)}>
-              <Trash2 className="size-3.5" /> Delete service
-            </Button>
-          )}
-        </motion.div>
-      </motion.div>
-
-    </motion.div>
+    </div>
 
   );
 
@@ -1198,212 +998,5 @@ function LimitInput({
 
 }
 
-
-
-function DeploymentsTab({ serviceId }: { serviceId: string }) {
-
-  const { data, loading, error } = useApi(
-
-    () => servicesApi.deployments(serviceId),
-
-    [serviceId],
-
-  );
-
-  const deployments = data ?? [];
-
-
-
-  if (loading) {
-
-    return <Skeleton className="h-32" />;
-
-  }
-
-
-
-  if (error) {
-
-    return <ErrorBanner message={`Could not load deployments (${error}).`} />;
-
-  }
-
-
-
-  if (deployments.length === 0) {
-
-    return (
-
-      <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted">
-
-        No deployments yet — deploy a service to see history
-
-      </div>
-
-    );
-
-  }
-
-
-
-  return (
-
-    <div className="rounded-xl border border-border bg-surface p-5">
-
-      <ol className="relative flex flex-col gap-0">
-
-        {deployments.map((deployment, index) => (
-
-          <DeploymentRow
-
-            key={deployment.id}
-
-            deployment={deployment}
-
-            isLast={index === deployments.length - 1}
-
-          />
-
-        ))}
-
-      </ol>
-
-    </div>
-
-  );
-
-}
-
-
-
-function DeploymentRow({
-
-  deployment,
-
-  isLast,
-
-}: {
-
-  deployment: Deployment;
-
-  isLast: boolean;
-
-}) {
-
-  const statusStyles: Record<
-
-    Deployment["status"],
-
-    { label: string; className: string }
-
-  > = {
-
-    success: {
-
-      label: "Success",
-
-      className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
-
-    },
-
-    failed: {
-
-      label: "Failed",
-
-      className: "border-red-500/40 bg-red-500/10 text-red-400",
-
-    },
-
-    building: {
-
-      label: "Building",
-
-      className: "border-amber-500/40 bg-amber-500/10 text-amber-400 animate-pulse",
-
-    },
-
-    queued: {
-
-      label: "Queued",
-
-      className: "border-border-focus bg-surface-raised text-muted",
-
-    },
-
-  };
-
-  const status = statusStyles[deployment.status];
-
-
-
-  return (
-
-    <li className="relative flex gap-4 pb-6 last:pb-0">
-
-      {!isLast && (
-
-        <span
-
-          className="absolute left-[7px] top-4 h-full w-px bg-surface-raised"
-
-          aria-hidden
-
-        />
-
-      )}
-
-      <span
-
-        className="relative z-10 mt-1 size-3.5 shrink-0 rounded-full border-2 border-border-focus bg-surface"
-
-        aria-hidden
-
-      />
-
-      <div className="min-w-0 flex-1">
-
-        <div className="flex flex-wrap items-center gap-2">
-
-          <span
-
-            className={cn(
-
-              "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
-
-              status.className,
-
-            )}
-
-          >
-
-            {status.label}
-
-          </span>
-
-          <span className="text-xs text-muted">
-
-            {formatRelativeTime(deployment.created_at)}
-
-          </span>
-
-          {deployment.commit_sha && (
-
-            <span className="font-mono text-xs text-muted">
-
-              {deployment.commit_sha.slice(0, 7)}
-
-            </span>
-
-          )}
-
-        </div>
-
-      </div>
-
-    </li>
-
-  );
-
-}
 
 

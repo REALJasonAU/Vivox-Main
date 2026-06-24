@@ -101,7 +101,20 @@ func (h *Hub) Serve(c *websocket.Conn) {
 	subs := make(map[string]context.CancelFunc)
 	termServices := make(map[string]string) // sessionID -> serviceID
 
-	// Writer goroutine: the single owner of c.WriteJSON.
+	// Writer goroutine: the single owner of c.WriteJSON/WriteMessage.
+	// Sends a ping every 30s so reverse proxies (Pangolin/Traefik/nginx) don't
+	// close idle WebSocket connections due to their read-idle timeout.
+	pingTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
+
+	// Reset read deadline on every pong (browsers respond to pings automatically).
+	// If no pong arrives within 90s the read loop exits and the connection is torn down.
+	c.SetPongHandler(func(string) error {
+		_ = c.SetReadDeadline(time.Now().Add(90 * time.Second))
+		return nil
+	})
+	_ = c.SetReadDeadline(time.Now().Add(90 * time.Second))
+
 	writerDone := make(chan struct{})
 	go func() {
 		defer close(writerDone)
@@ -111,6 +124,11 @@ func (h *Hub) Serve(c *websocket.Conn) {
 				return
 			case frame := <-out:
 				if err := c.WriteJSON(frame); err != nil {
+					cancelAll()
+					return
+				}
+			case <-pingTicker.C:
+				if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
 					cancelAll()
 					return
 				}

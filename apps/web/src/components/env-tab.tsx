@@ -1,34 +1,46 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, EyeOff, Save, Upload } from "lucide-react";
-import { servicesApi } from "@/lib/api";
+import { servicesApi, templatesApi } from "@/lib/api";
 import { mergeEnvRows, parseEnvFile } from "@/lib/env-parse";
 import { toast } from "@/hooks/useToast";
-import type { Service } from "@/lib/types";
+import type { ApiConfigurableField, Service } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const inputClass =
   "rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus focus:ring-1 focus:ring-border-focus";
 
-export function EnvTab({
+const HIDDEN_KEYS = new Set(["EULA", "eula"]);
+
+function fieldMetaForKey(
+  key: string,
+  fields: ApiConfigurableField[],
+): ApiConfigurableField | undefined {
+  return fields.find((f) => f.env === key || f.key === key);
+}
+
+export function StartupTab({
   service,
   onChanged,
   defaultStartupCmd = "Image entrypoint (automatic)",
 }: {
   service: Service;
   onChanged: (s: Service) => void;
-  /** Template / image default startup command for comparison. */
   defaultStartupCmd?: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const initial = Object.entries(service.config.environment ?? {}).map(([key, value]) => ({
-    key,
-    value,
-  }));
-  const [rows, setRows] = useState(initial.length > 0 ? initial : [{ key: "", value: "" }]);
-  const [masked, setMasked] = useState<Set<number>>(() => new Set());
+  const [fieldDefs, setFieldDefs] = useState<ApiConfigurableField[]>([]);
+
+  const visibleEnv = useMemo(() => {
+    const env = service.config.environment ?? {};
+    return Object.entries(env).filter(([key]) => !HIDDEN_KEYS.has(key));
+  }, [service.config.environment]);
+
+  const initial = visibleEnv.map(([key, value]) => ({ key, value }));
+  const [rows, setRows] = useState(initial.length > 0 ? initial : []);
+  const [masked, setMasked] = useState<Set<string>>(() => new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkText, setBulkText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -38,13 +50,22 @@ export function EnvTab({
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
+    void templatesApi.list().then((templates) => {
+      const game = templates.find((t) => t.type === "game" && t.id === "minecraft");
+      if (game?.configurable) setFieldDefs(game.configurable);
+    });
+  }, []);
+
+  useEffect(() => {
+    setRows(visibleEnv.map(([key, value]) => ({ key, value })));
     setStartupCmd(service.config.startup_cmd ?? "");
-  }, [service.config.startup_cmd]);
+  }, [visibleEnv, service.config.startup_cmd]);
 
   const importParsed = useCallback((parsed: { key: string; value: string }[]) => {
-    if (parsed.length === 0) return;
-    setRows((prev) => mergeEnvRows(prev, parsed));
-    toast(`Imported ${parsed.length} variables`, "success");
+    const filtered = parsed.filter((p) => !HIDDEN_KEYS.has(p.key));
+    if (filtered.length === 0) return;
+    setRows((prev) => mergeEnvRows(prev, filtered));
+    toast(`Imported ${filtered.length} variables`, "success");
   }, []);
 
   const onFileSelect = async (file: File | undefined) => {
@@ -53,31 +74,33 @@ export function EnvTab({
     importParsed(parseEnvFile(text));
   };
 
-  const toggleMask = (index: number) => {
+  const toggleMask = (key: string) => {
     setMasked((prev) => {
       const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
-  const update = (i: number, field: "key" | "value", val: string) =>
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+  const updateValue = (key: string, val: string) =>
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, value: val } : r)));
 
   const save = async () => {
     setSaving(true);
     setMsg(null);
-    const env = Object.fromEntries(
-      rows.filter((r) => r.key.trim()).map((r) => [r.key.trim(), r.value]),
+    const hidden = Object.fromEntries(
+      Object.entries(service.config.environment ?? {}).filter(([k]) => HIDDEN_KEYS.has(k)),
     );
+    const edited = Object.fromEntries(rows.filter((r) => r.key.trim()).map((r) => [r.key.trim(), r.value]));
+    const env = { ...hidden, ...edited };
     try {
       const updated = await servicesApi.updateEnv(service.id, env);
       const withCmd = await servicesApi.updateConfig(service.id, {
         startup_cmd: startupCmd.trim() || undefined,
       });
       onChanged(withCmd ?? updated);
-      toast("Environment saved", "success");
+      toast("Startup settings saved", "success");
       setMsg("Restart the service to apply changes.");
     } catch (e) {
       const m = e instanceof Error ? e.message : "Save failed";
@@ -179,39 +202,64 @@ export function EnvTab({
       )}
 
       <div className="flex flex-col gap-2">
-        {rows.map((row, i) => (
-          <div key={i} className="flex gap-2">
-            <input
-              value={row.key}
-              onChange={(e) => update(i, "key", e.target.value)}
-              placeholder="KEY"
-              className={cn(inputClass, "h-9 w-1/3 uppercase")}
-            />
-            <input
-              type={masked.has(i) ? "password" : "text"}
-              value={row.value}
-              onChange={(e) => update(i, "value", e.target.value)}
-              placeholder="value"
-              className={cn(inputClass, "h-9 flex-1")}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="shrink-0 px-2"
-              onClick={() => toggleMask(i)}
-              aria-label={masked.has(i) ? "Show value" : "Hide value"}
-            >
-              {masked.has(i) ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </Button>
-          </div>
-        ))}
+        {rows.length === 0 && (
+          <p className="text-sm text-muted">No startup variables configured.</p>
+        )}
+        {rows.map((row) => {
+          const meta = fieldMetaForKey(row.key, fieldDefs);
+          const label = meta?.label ?? row.key;
+          const options = meta?.options?.split(",").map((o) => o.trim()).filter(Boolean);
+          const isSelect = meta?.field_type === "select" && options && options.length > 0;
+          const isPassword = meta?.field_type === "password";
+          const isNumber = meta?.field_type === "number";
+
+          return (
+            <div key={row.key} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+              <div className="min-w-0 sm:w-1/3">
+                <p className="font-mono text-xs font-medium uppercase text-foreground">{label}</p>
+                {meta?.description && (
+                  <p className="text-[10px] text-subtle">{meta.description}</p>
+                )}
+              </div>
+              {isSelect ? (
+                <select
+                  value={row.value}
+                  onChange={(e) => updateValue(row.key, e.target.value)}
+                  className={cn(inputClass, "h-9 flex-1")}
+                >
+                  {options.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={isPassword && masked.has(row.key) ? "password" : isNumber ? "number" : "text"}
+                  value={row.value}
+                  onChange={(e) => updateValue(row.key, e.target.value)}
+                  placeholder="value"
+                  className={cn(inputClass, "h-9 flex-1")}
+                />
+              )}
+              {(isPassword || row.key.toLowerCase().includes("pass")) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 px-2"
+                  onClick={() => toggleMask(row.key)}
+                  aria-label={masked.has(row.key) ? "Show value" : "Hide value"}
+                >
+                  {masked.has(row.key) ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </Button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => setRows((p) => [...p, { key: "", value: "" }])}>
-          + Add variable
-        </Button>
+      <div className="flex items-center justify-end">
         <Button size="sm" actionType="save" onClick={save} loading={saving}>
           <Save className="size-3.5" /> Save
         </Button>
@@ -220,3 +268,6 @@ export function EnvTab({
     </div>
   );
 }
+
+/** @deprecated Use StartupTab */
+export const EnvTab = StartupTab;

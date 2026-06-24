@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -20,6 +21,7 @@ const (
 	labelService   = "nexus.service_id"
 	managedByValue = "nexus-agent"
 	maxReadBytes   = 1 << 20 // 1 MiB
+	serverDataRoot = "/mnt/server"
 )
 
 // Handler performs file operations inside a service container via docker exec.
@@ -46,10 +48,11 @@ func (h *Handler) Close() error {
 
 // ListFiles runs ls -la inside the container and parses entries.
 func (h *Handler) ListFiles(ctx context.Context, serviceID, path string) ([]*gen.FileEntry, error) {
-	if path == "" {
-		path = "/"
+	safe, err := validateServicePath(path)
+	if err != nil {
+		return nil, err
 	}
-	out, err := h.exec(ctx, serviceID, "ls", "-la", "--time-style=+%s", path)
+	out, err := h.exec(ctx, serviceID, "ls", "-la", "--time-style=+%s", safe)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +61,11 @@ func (h *Handler) ListFiles(ctx context.Context, serviceID, path string) ([]*gen
 
 // ReadFile reads file contents up to maxReadBytes.
 func (h *Handler) ReadFile(ctx context.Context, serviceID, path string) ([]byte, error) {
-	out, err := h.exec(ctx, serviceID, "cat", path)
+	safe, err := validateServicePath(path)
+	if err != nil {
+		return nil, err
+	}
+	out, err := h.exec(ctx, serviceID, "cat", safe)
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +78,13 @@ func (h *Handler) ReadFile(ctx context.Context, serviceID, path string) ([]byte,
 // WriteFile writes content to a path inside the container.
 // Creates parent directories if they don't exist.
 func (h *Handler) WriteFile(ctx context.Context, serviceID, path string, content []byte) error {
-	dir := path[:strings.LastIndex(path, "/")]
+	safe, err := validateServicePath(path)
+	if err != nil {
+		return err
+	}
+	dir := safe[:strings.LastIndex(safe, "/")]
 	if dir == "" {
-		dir = "/"
+		dir = serverDataRoot
 	}
 	if _, err := h.exec(ctx, serviceID, "sh", "-c", fmt.Sprintf("mkdir -p %s", shellQuote(dir))); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
@@ -87,7 +98,7 @@ func (h *Handler) WriteFile(ctx context.Context, serviceID, path string, content
 		return fmt.Errorf("no container found for service %s", serviceID)
 	}
 	execCfg := container.ExecOptions{
-		Cmd:          []string{"sh", "-c", "cat > " + shellQuote(path)},
+		Cmd:          []string{"sh", "-c", "cat > " + shellQuote(safe)},
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -117,8 +128,23 @@ func (h *Handler) WriteFile(ctx context.Context, serviceID, path string, content
 
 // DeleteFile removes a file inside the service container via docker exec.
 func (h *Handler) DeleteFile(ctx context.Context, serviceID, path string) error {
-	_, err := h.exec(ctx, serviceID, "rm", "-f", "--", path)
+	safe, err := validateServicePath(path)
+	if err != nil {
+		return err
+	}
+	_, err = h.exec(ctx, serviceID, "rm", "-f", "--", safe)
 	return err
+}
+
+func validateServicePath(path string) (string, error) {
+	if path == "" {
+		path = serverDataRoot
+	}
+	clean := filepath.Clean(path)
+	if clean != serverDataRoot && !strings.HasPrefix(clean, serverDataRoot+"/") {
+		return "", fmt.Errorf("path must be under %s", serverDataRoot)
+	}
+	return clean, nil
 }
 
 func (h *Handler) exec(ctx context.Context, serviceID string, cmd ...string) ([]byte, error) {
