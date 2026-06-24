@@ -23,7 +23,20 @@ import type {
   DeployTemplate,
   ServiceType,
 } from "@/lib/types";
-import type { PortBinding } from "@/lib/ports";
+import {
+  collectUsedHostPorts,
+  formatPortBinding,
+  isPortAvailable,
+  isValidHostIp,
+  parsePortBinding,
+  portBindingToMapping,
+  type PortBinding,
+} from "@/lib/ports";
+import {
+  BACKUP_STORAGE_OPTIONS,
+  DATABASE_TYPE_OPTIONS,
+  backupStorageLabel,
+} from "@/lib/allocations";
 import { useApi } from "@/hooks/useApi";
 import { toast } from "@/hooks/useToast";
 import { Button } from "@/components/ui/button";
@@ -32,14 +45,6 @@ import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth-client";
 import { UserCombobox } from "@/components/user-combobox";
 import { TemplateInfoDialog } from "@/components/template-info-dialog";
-import {
-  collectUsedHostPorts,
-  formatPortBinding,
-  isPortAvailable,
-  isValidHostIp,
-  parsePortBinding,
-  portBindingToMapping,
-} from "@/lib/ports";
 
 const TYPE_ICON: Record<ServiceType, typeof Container> = {
   game: Gamepad2,
@@ -74,6 +79,8 @@ function apiTemplateToDeployTemplate(t: ApiTemplate): DeployTemplate {
       value: f.default,
       description: f.description,
       options: f.options,
+      fieldType: f.field_type,
+      required: f.required,
     }));
 
   const staticEnv = Object.entries(t.env ?? {}).map(([key, value]) => ({
@@ -97,11 +104,18 @@ function apiTemplateToDeployTemplate(t: ApiTemplate): DeployTemplate {
     defaultImage: t.image,
     defaultPorts: t.ports ?? [],
     defaultStartupCmd: t.startup_cmd,
+    defaultInstallScript: t.install_script,
     defaultMemoryMb: t.resources?.memory_mb ?? 512,
     defaultCpuThreads: cpuThreads,
     defaultDiskGb: t.resources?.disk_gb ?? 5,
     env: [...staticEnv, ...envFields],
   };
+}
+
+function portBindingLabel(b: PortBinding): string {
+  const proto = b.proto || "tcp";
+  const alias = b.alias?.trim();
+  return `${b.hostIp}:${b.host} → ${b.container}/${proto}${alias ? ` (${alias})` : ""}`;
 }
 
 function initialPortBindings(template: DeployTemplate): PortBinding[] {
@@ -152,6 +166,14 @@ export default function DeployPage() {
   const [cpuThreads, setCpuThreads] = useState(1);
   const [diskGb, setDiskGb] = useState(10);
   const [portBindings, setPortBindings] = useState<PortBinding[]>([]);
+  const [mainPortIndex, setMainPortIndex] = useState(0);
+  const [maxBackups, setMaxBackups] = useState(3);
+  const [backupStorageMode, setBackupStorageMode] = useState<"node_local" | "node_custom">(
+    "node_local",
+  );
+  const [backupCustomPath, setBackupCustomPath] = useState("");
+  const [databaseSlots, setDatabaseSlots] = useState(0);
+  const [databaseTypes, setDatabaseTypes] = useState<string[]>([]);
   const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -193,26 +215,42 @@ export default function DeployPage() {
     setTemplateId(t.id);
     setImage(t.defaultImage);
     setEnv(Object.fromEntries(t.env.map((e) => [e.key, e.value])));
-    setStartupCmd("");
+    setStartupCmd(t.defaultStartupCmd ?? "");
     setMemoryMb(t.defaultMemoryMb ?? 2048);
     setCpuThreads(t.defaultCpuThreads ?? 1);
     setDiskGb(t.defaultDiskGb ?? 10);
     setPortBindings(initialPortBindings(t));
+    setMainPortIndex(0);
+    setMaxBackups(3);
+    setBackupStorageMode("node_local");
+    setBackupCustomPath("");
+    setDatabaseSlots(0);
+    setDatabaseTypes([]);
     setStep(1);
   };
+
+  const backupStorageResolved =
+    backupStorageMode === "node_custom"
+      ? backupCustomPath.trim()
+      : BACKUP_STORAGE_OPTIONS[0].value;
 
   const canConfigure =
     name.trim().length >= 2 &&
     !!nodeId &&
     (template?.type !== "docker" || image.trim().length > 0) &&
     portBindings.length > 0 &&
+    mainPortIndex >= 0 &&
+    mainPortIndex < portBindings.length &&
     portBindings.every(
       (b) => b.host > 0 && b.container > 0 && isValidHostIp(b.hostIp),
     ) &&
     portErrors.every((e) => e === null) &&
     memoryMb > 0 &&
     cpuThreads > 0 &&
-    diskGb > 0;
+    diskGb > 0 &&
+    maxBackups >= 0 &&
+    (backupStorageMode !== "node_custom" || backupCustomPath.trim().length > 0) &&
+    (databaseSlots === 0 || databaseTypes.length > 0);
 
   const deploy = async () => {
     if (!template) return;
@@ -220,7 +258,11 @@ export default function DeployPage() {
     setError(null);
 
     const ports = portBindings.map(formatPortBinding);
-    const port_mappings = portBindings.map(portBindingToMapping);
+    const port_mappings = portBindings.map((b, i) => ({
+      ...portBindingToMapping(b),
+      alias: i === mainPortIndex ? "main" : b.alias?.trim() || undefined,
+    }));
+    const mainBinding = portBindings[mainPortIndex];
     const input: CreateServiceInput = {
       name: name.trim(),
       type: template.type,
@@ -229,13 +271,24 @@ export default function DeployPage() {
         image: image.trim() || template.defaultImage,
         ports,
         port_mappings,
+        main_port: mainBinding.container,
         environment: env,
-        ...(startupCmd.trim() ? { startup_cmd: startupCmd.trim() } : {}),
+        ...((startupCmd.trim() || template.defaultStartupCmd)?.trim()
+          ? { startup_cmd: (startupCmd.trim() || template.defaultStartupCmd || "").trim() }
+          : {}),
+        ...(template.defaultInstallScript?.trim()
+          ? { install_script: template.defaultInstallScript.trim() }
+          : {}),
       },
       resource_limits: {
         cpu_shares: cpuThreads * 1024,
         memory_mb: memoryMb,
         disk_gb: diskGb,
+        max_backups: maxBackups,
+        backup_storage: backupStorageResolved,
+        ...(databaseSlots > 0
+          ? { database_slots: databaseSlots, database_types: databaseTypes }
+          : {}),
       },
       ...(ownerId ? { owner_id: ownerId } : {}),
     };
@@ -258,6 +311,12 @@ export default function DeployPage() {
   const updateBinding = (index: number, patch: Partial<PortBinding>) => {
     setPortBindings((prev) =>
       prev.map((b, i) => (i === index ? { ...b, ...patch } : b)),
+    );
+  };
+
+  const toggleDatabaseType = (id: string) => {
+    setDatabaseTypes((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
     );
   };
 
@@ -413,9 +472,17 @@ export default function DeployPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() =>
-                              setPortBindings((p) => p.filter((_, idx) => idx !== i))
-                            }
+                            onClick={() => {
+                              setPortBindings((p) => {
+                                const next = p.filter((_, idx) => idx !== i);
+                                setMainPortIndex((cur) => {
+                                  if (cur === i) return 0;
+                                  if (cur > i) return cur - 1;
+                                  return cur;
+                                });
+                                return next;
+                              });
+                            }}
                           >
                             <Trash2 className="size-3.5" />
                           </Button>
@@ -462,6 +529,122 @@ export default function DeployPage() {
                   )}
                 </div>
               </Labeled>
+
+              <Labeled label="Main port (primary bind — used for domains and default connect)">
+                <select
+                  value={mainPortIndex}
+                  onChange={(e) => setMainPortIndex(Number(e.target.value))}
+                  className={inputClass}
+                >
+                  {portBindings.map((b, i) => (
+                    <option key={i} value={i} className="bg-surface">
+                      {portBindingLabel(b)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-subtle">
+                  The main port is tagged as <span className="font-mono">main</span> and stored in
+                  service config for routing.
+                </p>
+              </Labeled>
+
+              <div className="rounded-lg border border-border bg-background/30 p-4">
+                <h3 className="text-sm font-medium text-foreground">Allocations</h3>
+                <p className="mt-0.5 text-xs text-muted">
+                  Backup and database limits for this server.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Labeled label="Max backups allowed">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={maxBackups}
+                      onChange={(e) => setMaxBackups(Number(e.target.value))}
+                      className={numInputClass}
+                    />
+                    <p className="text-xs text-subtle">
+                      Set to 0 to disable backups for this server.
+                    </p>
+                  </Labeled>
+                  <Labeled label="Backup storage">
+                    <select
+                      value={backupStorageMode}
+                      onChange={(e) =>
+                        setBackupStorageMode(e.target.value as "node_local" | "node_custom")
+                      }
+                      className={inputClass}
+                    >
+                      {BACKUP_STORAGE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value} className="bg-surface">
+                          {opt.label}
+                          {"path" in opt ? ` (${opt.path})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </Labeled>
+                </div>
+                {backupStorageMode === "node_custom" && (
+                  <Labeled label="Custom backup path on node">
+                    <input
+                      value={backupCustomPath}
+                      onChange={(e) => setBackupCustomPath(e.target.value)}
+                      placeholder="/mnt/backups/my-server"
+                      className={cn(inputClass, "mt-2 font-mono")}
+                    />
+                  </Labeled>
+                )}
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Labeled label="Database slots">
+                    <input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={databaseSlots}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setDatabaseSlots(n);
+                        if (n === 0) setDatabaseTypes([]);
+                      }}
+                      className={numInputClass}
+                    />
+                  </Labeled>
+                </div>
+                {databaseSlots > 0 && (
+                  <div className="mt-3">
+                    <span className="text-xs text-muted">Allowed database types</span>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {DATABASE_TYPE_OPTIONS.map((db) => {
+                        const checked = databaseTypes.includes(db.id);
+                        return (
+                          <label
+                            key={db.id}
+                            className={cn(
+                              "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs",
+                              checked
+                                ? "border-vivox-500/40 bg-vivox-500/10 text-foreground"
+                                : "border-border text-muted",
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleDatabaseType(db.id)}
+                              className="rounded border-border"
+                            />
+                            {db.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {databaseTypes.length === 0 && (
+                      <p className="mt-1 text-xs text-amber-400">
+                        Select at least one database type.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <Labeled label="Memory (MB)">
@@ -528,26 +711,12 @@ export default function DeployPage() {
                 <Labeled label="Environment variables">
                   <div className="flex flex-col gap-3">
                     {template.env.map((field) => (
-                      <div key={field.key} className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <span className="w-24 shrink-0 font-mono text-xs uppercase text-muted">
-                            {field.key}
-                          </span>
-                          <input
-                            value={env[field.key] ?? ""}
-                            onChange={(e) =>
-                              setEnv((prev) => ({ ...prev, [field.key]: e.target.value }))
-                            }
-                            className="h-9 flex-1 rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none focus:border-border-focus"
-                          />
-                        </div>
-                        <p className="pl-24 text-xs text-muted">
-                          {field.label}
-                          {field.description ? ` — ${field.description}` : ""}
-                          {field.options ? ` · Options: ${field.options}` : ""}
-                          {` · Default: ${field.value}`}
-                        </p>
-                      </div>
+                      <EnvField
+                        key={field.key}
+                        field={field}
+                        value={env[field.key] ?? ""}
+                        onChange={(v) => setEnv((prev) => ({ ...prev, [field.key]: v }))}
+                      />
                     ))}
                   </div>
                 </Labeled>
@@ -590,12 +759,27 @@ export default function DeployPage() {
                 <ReviewRow
                   label="Ports"
                   value={portBindings
-                    .map((b) => {
+                    .map((b, i) => {
                       const base = formatPortBinding(b);
-                      return b.alias?.trim() ? `${base} (${b.alias.trim()})` : base;
+                      const tags = [
+                        i === mainPortIndex ? "main" : null,
+                        b.alias?.trim() || null,
+                      ].filter(Boolean);
+                      return tags.length > 0 ? `${base} (${tags.join(", ")})` : base;
                     })
                     .join(", ")}
                 />
+                <ReviewRow label="Max backups" value={String(maxBackups)} />
+                <ReviewRow
+                  label="Backup storage"
+                  value={backupStorageLabel(backupStorageResolved)}
+                />
+                {databaseSlots > 0 && (
+                  <>
+                    <ReviewRow label="Database slots" value={String(databaseSlots)} />
+                    <ReviewRow label="Database types" value={databaseTypes.join(", ")} />
+                  </>
+                )}
                 {startupCmd.trim() && (
                   <ReviewRow label="Startup" value={startupCmd} className="col-span-2" />
                 )}
@@ -643,6 +827,54 @@ function Stepper({ step }: { step: Step }) {
           {i < STEP_LABELS.length - 1 && <span className="h-px flex-1 bg-surface-raised" />}
         </div>
       ))}
+    </div>
+  );
+}
+
+function EnvField({
+  field,
+  value,
+  onChange,
+}: {
+  field: DeployTemplate["env"][number];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const inputClass =
+    "h-9 flex-1 rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none focus:border-border-focus";
+  const options = field.options?.split(",").map((o) => o.trim()).filter(Boolean) ?? [];
+  const useSelect = field.fieldType === "select" || (options.length > 0 && field.fieldType !== "text");
+  const inputType =
+    field.fieldType === "password" ? "password" : field.fieldType === "number" ? "number" : "text";
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-background/30 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-foreground">{field.label}</span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted">{field.key}</span>
+      </div>
+      {field.description && <p className="text-xs text-muted">{field.description}</p>}
+      {useSelect ? (
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(inputClass, "font-sans")}
+        >
+          {options.map((opt) => (
+            <option key={opt} value={opt} className="bg-surface">
+              {opt}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={inputType}
+          value={value}
+          required={field.required}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputClass}
+        />
+      )}
     </div>
   );
 }

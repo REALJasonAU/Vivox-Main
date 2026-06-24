@@ -16,6 +16,10 @@ import type {
   ScheduledTask,
   Service,
   ServiceDomain,
+  ServicePlugin,
+  PluginResult,
+  RustConvar,
+  ServerCfgResponse,
   ServiceHealth,
   WebhookConfig,
 } from "./types";
@@ -177,6 +181,8 @@ export const servicesApi = {
   health: (id: string) => apiFetch<ServiceHealth>(`/services/${id}/health`),
   redeploy: (id: string) =>
     apiFetch<{ status: string }>(`/services/${id}/redeploy`, { method: "POST" }),
+  reinstall: (id: string) =>
+    apiFetch<{ status: string; reinstall: boolean }>(`/services/${id}/reinstall`, { method: "POST" }),
   logs: (id: string, range: string, q?: string, stream?: string) => {
     const p = new URLSearchParams({ range });
     if (q) p.set("q", q);
@@ -204,6 +210,71 @@ export const servicesApi = {
     apiFetch<ServiceDomain>(`/services/${id}/domains`, { method: "POST", body: { domain } }),
   removeDomain: (id: string, domainId: string) =>
     apiFetch<void>(`/services/${id}/domains/${domainId}`, { method: "DELETE", raw: true }),
+  listPlugins: (id: string) => apiFetch<ServicePlugin[]>(`/services/${id}/plugins`),
+  searchPlugins: (
+    id: string,
+    params: {
+      q?: string;
+      source?: string;
+      mc_version: string;
+      framework: string;
+      page?: number;
+    },
+  ) =>
+    apiFetch<{ results: PluginResult[] }>(
+      `/services/${id}/plugins/search?` +
+        new URLSearchParams({
+          q: params.q ?? "",
+          source: params.source ?? "all",
+          mc_version: params.mc_version,
+          framework: params.framework,
+          page: String(params.page ?? 0),
+        }),
+    ),
+  installPlugin: (
+    id: string,
+    body: {
+      source: string;
+      external_id: string;
+      name: string;
+      version: string;
+      version_id: string;
+      download_url: string;
+      jar_filename: string;
+      auto_update: boolean;
+    },
+  ) => apiFetch<ServicePlugin>(`/services/${id}/plugins/install`, { method: "POST", body }),
+  uninstallPlugin: (id: string, pluginId: string) =>
+    apiFetch<void>(`/services/${id}/plugins/${pluginId}`, { method: "DELETE", raw: true }),
+  updatePlugin: (
+    id: string,
+    pluginId: string,
+    body: {
+      source: string;
+      external_id: string;
+      name: string;
+      version: string;
+      version_id: string;
+      download_url: string;
+      jar_filename: string;
+      auto_update: boolean;
+    },
+  ) =>
+    apiFetch<ServicePlugin>(`/services/${id}/plugins/${pluginId}/update`, {
+      method: "POST",
+      body,
+    }),
+  scanPlugins: (id: string) =>
+    apiFetch<ServicePlugin[]>(`/services/${id}/plugins/scan`, { method: "POST" }),
+  readServerCfg: (id: string) =>
+    apiFetch<ServerCfgResponse>(`/services/${id}/cfg`),
+  writeServerCfg: (id: string, path: string, content: string) =>
+    apiFetch<{ path: string; ok: boolean }>(`/services/${id}/cfg`, {
+      method: "PUT",
+      body: { path, content },
+    }),
+  getConvars: (id: string) =>
+    apiFetch<RustConvar[]>(`/services/${id}/cfg/convars`),
   templates: () => apiFetch<ApiTemplate[]>("/templates"),
 };
 

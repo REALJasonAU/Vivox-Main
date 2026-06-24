@@ -15,9 +15,13 @@ type NodeCapacity struct {
 // ResourceLimits describes the resource ceiling applied to a single service.
 // Stored in services.resource_limits (JSONB).
 type ResourceLimits struct {
-	CPUShares int64 `json:"cpu_shares"`
-	MemoryMB  int64 `json:"memory_mb"`
-	DiskGB    int64 `json:"disk_gb"`
+	CPUShares     int64    `json:"cpu_shares"`
+	MemoryMB      int64    `json:"memory_mb"`
+	DiskGB        int64    `json:"disk_gb"`
+	MaxBackups    int      `json:"max_backups,omitempty"`
+	BackupStorage string   `json:"backup_storage,omitempty"`
+	DatabaseSlots int      `json:"database_slots,omitempty"`
+	DatabaseTypes []string `json:"database_types,omitempty"`
 }
 
 // HealthCheck configures HTTP health probing for a service container.
@@ -44,7 +48,10 @@ type ServiceConfig struct {
 	Ports        []string          `json:"ports,omitempty"`
 	PortMappings []PortMapping     `json:"port_mappings,omitempty"`
 	Environment  map[string]string `json:"environment,omitempty"`
-	StartupCmd   string            `json:"startup_cmd,omitempty"`
-	AssetURL     string            `json:"asset_url,omitempty"`
+	StartupCmd    string            `json:"startup_cmd,omitempty"`
+	InstallScript string            `json:"install_script,omitempty"`
+	InstallerImage string           `json:"installer_image,omitempty"`
+	MainPort       int              `json:"main_port,omitempty"`
+	AssetURL      string            `json:"asset_url,omitempty"`
 	HealthCheck  *HealthCheck      `json:"health_check,omitempty"`
 }

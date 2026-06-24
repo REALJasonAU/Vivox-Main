@@ -21,6 +21,10 @@ export interface ResourceLimits {
   cpu_shares: number;
   memory_mb: number;
   disk_gb: number;
+  max_backups?: number;
+  backup_storage?: string;
+  database_slots?: number;
+  database_types?: string[];
 }
 
 export interface ServiceConfig {
@@ -29,6 +33,8 @@ export interface ServiceConfig {
   port_mappings?: PortMapping[];
   environment?: Record<string, string>;
   startup_cmd?: string;
+  install_script?: string;
+  main_port?: number;
   asset_url?: string;
   health_check?: HealthCheck;
 }
@@ -107,6 +113,54 @@ export interface Backup {
   error: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface ServicePlugin {
+  id: string;
+  service_id: string;
+  source: "modrinth" | "curseforge" | "spigot" | "umod" | "codefling" | "manual";
+  external_id: string;
+  name: string;
+  version: string;
+  version_id: string;
+  jar_filename: string;
+  plugin_dir: string;
+  auto_update: boolean;
+  installed_at: string;
+  dependencies: string[];
+}
+
+export interface PluginResult {
+  id: string;
+  source: "modrinth" | "curseforge" | "spigot" | "umod" | "codefling";
+  name: string;
+  description: string;
+  icon_url: string;
+  downloads: number;
+  version: string;
+  version_id: string;
+  download_url: string;
+  page_url: string;
+  jar_filename: string;
+  is_paid: boolean;
+}
+
+export interface RustConvar {
+  Name: string;
+  Help: string | null;
+  Type: "bool" | "int" | "float" | "string" | "System.Int64" | "UnityEngine.Vector3";
+  Saved: boolean;
+  ServerAdmin: boolean;
+  ServerUser: boolean;
+  Clientside: boolean;
+  Serverside: boolean;
+  DefaultValue: string | number | boolean | null;
+}
+
+export interface ServerCfgResponse {
+  path: string;
+  content: string;
+  found: boolean;
 }
 
 export interface ServiceDomain {
@@ -239,6 +293,8 @@ export interface ApiConfigurableField {
   env: string;
   description?: string;
   options?: string;
+  field_type?: "text" | "select" | "password" | "number" | "boolean";
+  required?: boolean;
 }
 
 export interface ApiTemplateResources {
@@ -258,6 +314,7 @@ export interface ApiTemplate {
   configurable: ApiConfigurableField[];
   resources: ApiTemplateResources;
   startup_cmd?: string;
+  install_script?: string;
 }
 
 /* ----- Deploy templates (plan section 9) ----- */
@@ -276,9 +333,11 @@ export interface DeployTemplate {
     required?: boolean;
     description?: string;
     options?: string;
+    fieldType?: "text" | "select" | "password" | "number" | "boolean";
   }[];
   defaultPorts: string[];
   defaultStartupCmd?: string;
+  defaultInstallScript?: string;
   defaultMemoryMb?: number;
   defaultCpuThreads?: number;
   defaultDiskGb?: number;
@@ -322,6 +381,6 @@ export interface RegisterNodeResponse {
 
 export interface RegisterNodeInput {
   name: string;
-  region: string;
+  region?: string;
   capacity?: NodeCapacity;
 }

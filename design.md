@@ -1,6 +1,6 @@
 # Vivox — Design System & UI Reference
 
-This document describes the visual language, layout structure, animation system, and component patterns used across the Vivox web application (`apps/web`). The aesthetic is a dark-first control plane with zinc neutrals, **Vivox red** accents, and semantic status colors.
+This document describes the visual language, layout structure, animation system, and component patterns used across the Vivox web application (`apps/web`). The aesthetic is **dark-first** with **light mode** support, semantic surface tokens, **Vivox red** accents, and status colors driven by CSS variables.
 
 ---
 
@@ -9,7 +9,7 @@ This document describes the visual language, layout structure, animation system,
 | Asset | Location |
 |-------|----------|
 | Logo PNG | `apps/web/public/vivox-logo.png` |
-| Logo component | `apps/web/src/components/vivox-logo.tsx` — `Image` with inline SVG fallback on error |
+| Logo component | `apps/web/src/components/vivox-logo.tsx` |
 | Wordmark | **Vivox** (sidebar, metadata, auth) |
 | Primary accent | `vivox-500` = `#e5181b` |
 
@@ -37,45 +37,60 @@ This document describes the visual language, layout structure, animation system,
 
 | Principle | How it shows up |
 |-----------|-----------------|
-| **Dark-first** | Default theme is dark (`zinc-950` canvas). Light mode supported. |
-| **Operational clarity** | Status badges, live metrics, transient-state control locking. |
-| **Layered surfaces** | `zinc-950` → `zinc-900` panels → `zinc-800` borders. |
-| **Expressive motion** | Framer Motion + CSS keyframe library on every interactive surface. |
-| **Monospace for data** | JetBrains Mono for logs, ports, images, metrics. |
-| **Live data** | WebSocket topics; "Live" pill in top bar. |
+| **Dark-first, light supported** | Default `.dark` on `<html>`; `.light` overrides in `globals.css` |
+| **Semantic tokens** | Prefer `bg-background`, `bg-surface`, `text-foreground`, `text-muted`, `border-border` over raw `zinc-*` |
+| **Operational clarity** | Status badges, live metrics, transient-state control locking |
+| **Dual panel UX** | Customers see **My Servers**; admins switch to a separate admin panel via footer/profile |
+| **Expressive motion** | Framer Motion + CSS keyframe library on interactive surfaces |
+| **Monospace for data** | JetBrains Mono for logs, ports, images, metrics |
+| **Live data** | WebSocket topics for service + node status; "Live" indicators |
 
 ---
 
 ## Color palette
 
-### Core neutrals (dark mode)
+### Semantic tokens (preferred in components)
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `zinc-950` | `#09090b` | Page background |
-| `zinc-900` | `#18181b` | Sidebar, cards, panels |
-| `zinc-800` | `#27272a` | Borders, tracks |
-| `zinc-400` | `#a1a1aa` | Secondary text |
-| `zinc-100` | `#f4f4f5` | Primary text |
+Use Tailwind classes mapped to CSS variables in `globals.css`:
 
-**Hover tint:** `#1f1f23`
+| Class | Role |
+|-------|------|
+| `bg-background` | Page canvas |
+| `bg-surface` | Sidebar, cards, panels |
+| `bg-surface-raised` | Hover rows, active nav, elevated chips |
+| `text-foreground` | Primary text |
+| `text-muted` | Secondary labels |
+| `text-subtle` | Hints, disabled copy |
+| `border-border` | Default borders |
+| `border-border-focus` | Focus rings |
+| `text-vivox-400` / `bg-vivox-500` | Brand accent |
 
-### Accent tokens (CSS)
+### Legacy zinc reference (dark mode)
 
-```css
---accent-primary: #e5181b;
---accent: 229 24 27;
---accent-soft: 255 85 85;   /* dark */
---accent-soft: 192 16 21;   /* light */
-```
+| Token | Hex | Maps to |
+|-------|-----|---------|
+| `zinc-950` | `#09090b` | `--background` |
+| `zinc-900` | `#18181b` | `--surface` |
+| `zinc-800` | `#27272a` | `--border` |
+| `zinc-400` | `#a1a1aa` | `--muted` |
+| `zinc-100` | `#f4f4f5` | `--foreground` |
 
-### Semantic colors (unchanged)
+**Hover tint (dark):** `bg-surface-raised` or `#1f1f23` where legacy styles remain.
 
-| Color | Usage |
-|-------|-------|
-| Emerald | Running, success, memory metrics |
-| Amber | Warnings, log cap proximity |
-| Red | Crashed, danger, stderr, notification dot |
+### Status colors
+
+Driven by `--status-*` RGB triples in `globals.css` (used in badges and usage bars):
+
+| Status | Token | UI copy |
+|--------|-------|---------|
+| PROVISIONING | `--status-provisioning` | "Downloading image and installing server files" |
+| STARTING | `--status-starting` | Container spawned |
+| RUNNING | `--status-running` | Healthy |
+| STOPPING | `--status-stopping` | Graceful shutdown |
+| STOPPED | `--status-stopped` | Clean exit |
+| CRASHED | `--status-crashed` | Non-zero exit |
+
+Use `rgb(var(--status-running))` or the helper pattern in node/service rows — **not** hardcoded hex in new code.
 
 ### Links & interactive accent
 
@@ -83,39 +98,44 @@ Use `text-vivox-400`, `bg-vivox-500`, `ring-vivox-500`, `border-vivox-500/*` —
 
 ---
 
+## App shell layout
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  SIDEBAR (spring 72↔256px) │  TOP BAR (sticky)                   │
+│  VivoxLogo                 │  search · ws · bell · theme         │
+│  ─────────────────         ├──────────────────────────────────────┤
+│  USER: My Servers          │  MAIN max-w-7xl                     │
+│  ADMIN: Dashboard,         │  PageTransition                     │
+│    Servers, Users,         │                                     │
+│    Nodes, Audit, Templates │                                     │
+│  ─────────────────         │                                     │
+│  footer: bell · theme      │                                     │
+│    · [shield] admin icon   │  (user mode — admins only)          │
+│  profile menu              │                                     │
+│  ← User panel (text)       │  (admin mode — bottom link)         │
+│  collapse chevron          │                                     │
+└────────────────────────────┴──────────────────────────────────────┘
+```
+
+### Navigation scopes
+
+| Mode | Routes | Sidebar nav |
+|------|--------|-------------|
+| **User panel** | `/dashboard`, `/services/*`, `/settings` | My Servers |
+| **Admin panel** | `/admin/*`, `/deploy` | Dashboard, Servers, Users, Nodes, Audit, Templates |
+
+**Panel switcher**
+
+- User mode: shield icon in footer icon row → `/admin/dashboard`
+- Admin mode: text link at sidebar bottom → `/dashboard`
+- Profile menu: **Admin panel** / **User panel** entry between settings and sign out
+
+---
+
 ## Animation system
 
-Defined in `apps/web/src/app/globals.css` and extended via Framer Motion in components.
-
-### CSS utility classes
-
-| Class | Effect |
-|-------|--------|
-| `animate-rocket-thrust` | Deploy icon thrust |
-| `animate-spin-once` | Restart / save spin |
-| `animate-shake-danger` | Danger shake |
-| `animate-bounce-down` / `animate-bounce-up` | Download / upload |
-| `animate-trash-lid` | Delete lid pop |
-| `animate-copy-flash` | Copy swap |
-| `animate-play-ripple` | Start ripple (vivox red) |
-| `animate-stop-implode` | Stop implode |
-| `animate-page-enter` | Route enter |
-| `animate-tab-right` / `animate-tab-left` | Tab slide |
-| `animate-stagger-up` / `animate-stagger-right` | List/card entrance |
-| `animate-glow-danger` | Danger hover glow |
-| `animate-collapse-remove` | Row removal |
-| `animate-success-flash` | Success background flash |
-| `animate-confirm-bounce` | Confirm panel bounce |
-| `animate-toast-in` / `animate-toast-out` | Toast slide |
-| `animate-backdrop-in` | Modal backdrop |
-| `animate-modal-in` | Modal scale-in |
-| `animate-dropdown-in` | Dropdown scale-in |
-| `animate-number-pop` | Counter pop |
-| `animate-input-glow` | Focus ring (vivox red) |
-| `animate-drag-lift` | File drag lift |
-| `animate-drop-pulse` | Drop target pulse |
-| `animate-ping-once` | Notification badge ping |
-| `animate-sidebar-nav` | Nav item entrance |
+Defined in `apps/web/src/app/globals.css` and Framer Motion in components.
 
 ### Button `actionType` prop
 
@@ -126,52 +146,23 @@ Defined in `apps/web/src/app/globals.css` and extended via Framer Motion in comp
 | `stop` | `animate-stop-implode` |
 | `restart` | `animate-spin-once` |
 | `delete` | `animate-trash-lid` |
-| `save` | `animate-spin-once` + brief "Saved" check |
-| `copy` | `animate-copy-flash` + "Copied" |
-| `download` | `animate-bounce-down` |
-| `upload` | `animate-bounce-up` |
-| `none` | Framer hover/tap only |
+| `save` / `copy` | Spin or flash + brief success label |
 
-Buttons use `motion.button` with `whileHover={{ scale: 1.02, y: -0.5 }}` and `whileTap={{ scale: 0.96 }}`.
+Buttons use `motion.button` with spring hover/tap.
 
-### Framer Motion surfaces
+### Key motion surfaces
 
 | Surface | Pattern |
 |---------|---------|
-| **PageTransition** | `AnimatePresence mode="wait"` — slide + fade on route change |
-| **Service tabs** | Direction-aware `x` slide based on tab index |
-| **Dashboard grid** | `staggerChildren: 0.055` card entrance |
-| **ServiceCard** | Hover lift + vivox border tint |
-| **Sidebar** | Spring width `64↔256`, logo hover rotate, nav stagger |
-| **Toaster** | Spring slide from right, `popLayout` |
-| **Dropdowns** | Scale + `y` (account menu, notification bell) |
-| **NodeSetupPanel** | Backdrop fade + panel spring |
-| **Login/register** | Field stagger `0.08s` |
-| **Summary cards** | `useSpring` animated numbers |
-| **Delete confirm** | Pulsing red border + shake |
-| **Schedule rows** | Collapse-out on delete |
-
-### Input focus
-
-Global rule applies `animate-input-glow` and `border-color: rgba(229, 24, 27, 0.5)` on focus. Auth fields use floating labels with `peer-focus:text-vivox-400`.
+| **PageTransition** | `AnimatePresence mode="wait"` on route change |
+| **Sidebar** | Spring width; `layoutId` active nav pill |
+| **NodeSetupPanel** | Modal backdrop + spring panel |
+| **Service controls** | Transient status pulsing ring when locked |
+| **Toaster** | Spring slide from right |
 
 ### Reduced motion
 
-`prefers-reduced-motion: reduce` collapses all animation durations to ~0ms in `globals.css`.
-
----
-
-## App shell layout
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  SIDEBAR (spring width)    │  TOP BAR (sticky, h-16)              │
-│  VivoxLogo + wordmark      │  search · ws · bell · theme · user   │
-│  staggered nav             ├──────────────────────────────────────┤
-│  Deploy CTA (actionType)   │  MAIN max-w-7xl                      │
-│  collapse chevron rotate   │  PageTransition (AnimatePresence)    │
-└────────────────────────────┴──────────────────────────────────────┘
-```
+`prefers-reduced-motion: reduce` collapses animation durations in `globals.css`.
 
 ---
 
@@ -181,8 +172,8 @@ Global rule applies `animate-input-glow` and `border-color: rgba(229, 24, 27, 0.
 |------|------|
 | UI | Inter (`--font-sans`) |
 | Data | JetBrains Mono (`--font-mono`) |
-| Page title | `text-2xl font-semibold tracking-tight text-zinc-100` |
-| Section label | `text-xs uppercase tracking-wider text-zinc-500` |
+| Page title | `text-xl font-semibold tracking-tight text-foreground` |
+| Section label | `text-xs uppercase tracking-wider text-muted` |
 
 ---
 
@@ -193,62 +184,64 @@ Global rule applies `animate-input-glow` and `border-color: rgba(229, 24, 27, 0.
 | Variant | Style |
 |---------|-------|
 | primary | `bg-vivox-500 hover:bg-vivox-600 shadow-vivox-500/20` |
-| secondary | `bg-zinc-800` |
-| ghost | `hover:bg-[#1f1f23]` |
-| danger | `bg-red-500/10` + `hover:animate-glow-danger` |
-| outline | `border-zinc-800` |
+| secondary | `bg-surface-raised border border-border` |
+| ghost | `text-muted hover:bg-surface-raised` |
+| danger | `bg-red-500/10` + glow on hover |
+| outline | `border-border` |
 
-### Cards
+### Cards / panels
 
 ```
-rounded-xl border border-zinc-800 bg-zinc-900 p-5
+rounded-xl border border-border bg-surface p-4
 ```
 
-Service cards: motion hover `y: -2`, border `rgba(229,24,27,0.25)`, animated metric bars.
+Elevated inputs: `bg-background/50 border-border focus:border-border-focus`
 
 ### Status badges
 
-Spring mount `scale 0.8→1`. Colors via `--status-*` CSS variables.
+Rounded pill with dot; colors from `--status-*` via inline `color-mix` for background tint.
 
-### Toasts
+### Service controls (`service-controls.tsx`)
 
-Bottom-right, variant tints. Info uses `border-vivox-500/25 bg-vivox-500/10`.
+Start · Restart · **Reinstall** · Stop — disabled during transient states (`PROVISIONING`, `STARTING`, `STOPPING`).
 
----
+### Theme toggle (`theme-toggle.tsx`)
 
-## Service status colors
-
-| Status | Color | Animation |
-|--------|-------|-----------|
-| PROVISIONING | Amber | Spinner |
-| STARTING | Teal | Pulse |
-| RUNNING | Emerald | — |
-| STOPPING | Orange | Pulse |
-| STOPPED | Zinc | — |
-| CRASHED | Red | — |
+Compact icon button in sidebar footer; sun/moon cross-fade.
 
 ---
 
 ## Page-specific notes
 
-### Dashboard
-- Grid/list toggle (`vivox-view`)
-- Staggered service card grid
-- `AnimatedNumber` summary cards (running, stopped, RAM)
+### Customer dashboard (`/dashboard`)
+
+- **My Servers** scope only; grid/list toggle (`vivox-view`)
+- Live service status merged from WebSocket hook
+
+### Admin dashboard (`/admin/dashboard`)
+
+- Fleet stats, node health, live node status
+
+### Admin nodes
+
+- List at `/admin/nodes`; create at `/admin/nodes/create` (name-only form)
+- Detail page with token rotate + setup panel
+
+### Deploy wizard (`/deploy`)
+
+- Steps: Template → Configure → Environment → Review
+- Template cards with info dialog; env fields respect `field_type` (select, password, number)
+- Port bindings: bind IP, host port, container port, optional alias
 
 ### Service detail
-- Tab bar underline: `bg-vivox-500`
-- Direction-aware tab content transitions
-- Settings danger zone: glow + shake on confirm
 
-### Deploy wizard
-- Animated stepper circles (`#e5181b` fill when complete)
-- Final deploy button: `actionType="deploy"`
+- Console tab streams install + runtime logs (`[vivox] === Installing server files ===`)
+- Service controls include reinstall
 
 ### Auth
-- `VivoxLogo` size 52
-- Floating labels on fields
-- Staggered form entrance
+
+- `VivoxLogo`, floating labels, staggered field entrance
+- Landing page at `/` for signed-out users
 
 ---
 
@@ -258,32 +251,38 @@ Bottom-right, variant tints. Info uses `border-vivox-500/25 bg-vivox-500/10`.
 |---------|------|
 | Design tokens | `apps/web/src/app/globals.css` |
 | Tailwind theme | `apps/web/tailwind.config.ts` |
-| Logo | `apps/web/src/components/vivox-logo.tsx` |
-| Buttons + actionType | `apps/web/src/components/ui/button.tsx` |
-| Page transitions | `apps/web/src/components/page-transition.tsx` |
-| Theme cookie | `vivox-theme` in `theme-provider.tsx` |
+| App shell | `apps/web/src/components/app-shell.tsx` |
+| Sidebar + panel switch | `apps/web/src/components/sidebar.tsx` |
+| Profile menu | `apps/web/src/components/sidebar-user-menu.tsx` |
+| Theme provider | `apps/web/src/components/theme-provider.tsx` |
+| Live status hooks | `apps/web/src/hooks/useLiveStatuses.ts` |
+| Status metadata | `apps/web/src/lib/status.ts` |
+| Buttons | `apps/web/src/components/ui/button.tsx` |
 
 ---
 
 ## Quick recipes
 
 **Primary CTA:**
+
 ```html
 <button class="inline-flex h-10 items-center gap-2 rounded-lg bg-vivox-500 px-4 text-sm font-medium text-white shadow-sm shadow-vivox-500/20">
   Action
 </button>
 ```
 
-**Accent link:**
+**Semantic panel:**
+
 ```html
-<a class="text-vivox-400 hover:underline">Link</a>
+<div class="rounded-xl border border-border bg-surface p-5">...</div>
 ```
 
-**Panel:**
+**Muted label:**
+
 ```html
-<div class="rounded-xl border border-zinc-800 bg-zinc-900 p-5">...</div>
+<p class="text-xs uppercase tracking-wider text-muted">Section</p>
 ```
 
 ---
 
-*Last updated: Sprint 10 — Vivox rebrand, red accent, comprehensive animation system.*
+*Last updated: Sprint 14+ — semantic light/dark tokens, dual admin/user panel, live node status, Pterodactyl-style install UX.*

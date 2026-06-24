@@ -26,7 +26,7 @@ export const STATUS_META: Record<ServiceStatus, StatusMeta> = {
     color: "provisioning",
     pulse: false,
     spinner: true,
-    description: "Pulling image / running install script",
+    description: "Downloading image and installing server files",
   },
   STARTING: {
     label: "Starting",

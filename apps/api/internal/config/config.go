@@ -41,6 +41,8 @@ type Config struct {
 	CaddyAdminURL string
 	// NodePublicHost is the host agents expose published ports on (for Caddy upstream dial).
 	NodePublicHost string
+	// CurseForgeAPIKey enables CurseForge search in the plugin manager (optional).
+	CurseForgeAPIKey string
 }
 
 // Load reads configuration from the environment, applying dev-friendly defaults.
@@ -58,6 +60,7 @@ func Load() Config {
 		GRPCTLSDisabled: envBool("GRPC_TLS_DISABLED", false),
 		CaddyAdminURL:   env("CADDY_ADMIN_URL", ""),
 		NodePublicHost:  env("NODE_PUBLIC_HOST", "host.docker.internal"),
+		CurseForgeAPIKey: env("CURSEFORGE_API_KEY", ""),
 	}
 }
 

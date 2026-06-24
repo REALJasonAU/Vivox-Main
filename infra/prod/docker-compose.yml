@@ -66,6 +66,7 @@ services:
       TEMPLATES_DIR: /app/templates
       NODE_PUBLIC_HOST: ${NODE_PUBLIC_HOST:-}
       CADDY_ADMIN_URL: ${CADDY_ADMIN_URL:-}
+      CURSEFORGE_API_KEY: ${CURSEFORGE_API_KEY:-}
     volumes:
       - vivox-certs:/app/certs
     # Port 8080 NOT exposed to host — Next.js proxies /api/control/* internally.

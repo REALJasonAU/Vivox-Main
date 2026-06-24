@@ -1,0 +1,173 @@
+# Rust dedicated server (SturdyStubs AIO egg–compatible).
+# Based on Pterodactyl PTDL_v2 egg structure: env vars + startup command.
+id: rust
+name: Rust Server
+description: >-
+  Facepunch Rust dedicated server via ghcr.io/sturdystubs/aioegg. Supports
+  Vanilla, Oxide, and Carbon modding frameworks with procedural or custom maps.
+type: game
+image: ghcr.io/sturdystubs/aioegg:production
+
+ports:
+  - "0.0.0.0:28015:28015/udp"
+  - "0.0.0.0:28016:28016/tcp"
+  - "0.0.0.0:28017:28017/udp"
+
+# Defaults applied to every deploy (aligned with egg variables).
+env:
+  SERVER_PORT: "28015"
+  QUERY_PORT: "28017"
+  RCON_PORT: "28016"
+  APP_PORT: "-1"
+  SERVER_IDENTITY: "rust"
+  LEVEL: "Procedural Map"
+  GAMEMODE: "vanilla"
+  SAVEINTERVAL: "600"
+  SERVER_URL: ""
+  SERVER_IMG: ""
+  SERVER_LOGO: ""
+  MAP_URL: ""
+  APP_PUBLIC_IP: ""
+  SERVER_TAGS: "vanilla"
+  ADDITIONAL_ARGS: ""
+  DOWNLOAD_METHOD: "SteamCMD"
+  VERSION: "public"
+  AUTO_UPDATE: "1"
+  VALIDATE: "1"
+
+install_script: |
+  #!/bin/bash
+  # Pterodactyl-style SteamCMD install (SturdyStubs AIO egg compatible).
+  set -euo pipefail
+  SRCDS_APPID=258550
+  DOWNLOAD_METHOD="${DOWNLOAD_METHOD:-SteamCMD}"
+  METHOD_LC="$(echo "${DOWNLOAD_METHOD}" | tr '[:upper:]' '[:lower:]')"
+  FRAMEWORK="${FRAMEWORK:-public}"
+  case "$(echo "${FRAMEWORK}" | tr '[:upper:]' '[:lower:]')" in
+    *aux1*) BRANCH="aux01" ;;
+    *aux2*) BRANCH="aux02" ;;
+    *staging*) BRANCH="staging" ;;
+    *) BRANCH="public" ;;
+  esac
+  STEAM_USER="${STEAM_USER:-anonymous}"
+  STEAM_PASS="${STEAM_PASS:-}"
+  STEAM_AUTH="${STEAM_AUTH:-}"
+  if ! command -v unzip >/dev/null 2>&1; then
+    apt-get update && apt-get install -y unzip curl
+  fi
+  install_depotdownloader() {
+    local dd_dir="/mnt/server/DepotDownloader"
+    local zip="/tmp/DepotDownloader.zip"
+    local url="${DEPOTDOWNLOADER_URL:-https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_3.4.0/DepotDownloader-linux-x64.zip}"
+    if [ -x "${dd_dir}/DepotDownloader" ]; then return 0; fi
+    mkdir -p "${dd_dir}"
+    curl -fsSL -o "${zip}" "${url}"
+    unzip -o "${zip}" -d "${dd_dir}"
+    chmod +x "${dd_dir}/DepotDownloader" || true
+    rm -f "${zip}"
+  }
+  cd /tmp
+  mkdir -p /mnt/server/steamcmd /mnt/server/steamapps
+  curl -fsSL -o steamcmd.tar.gz https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+  tar -xzf steamcmd.tar.gz -C /mnt/server/steamcmd
+  cd /mnt/server/steamcmd
+  export HOME=/mnt/server
+  if [ "${METHOD_LC}" = "depotdownloader" ] || [ "${METHOD_LC}" = "dd" ]; then
+    install_depotdownloader
+    /mnt/server/DepotDownloader/DepotDownloader -app "${SRCDS_APPID}" -dir /mnt/server -branch "${BRANCH}" -validate
+  else
+    ./steamcmd.sh +force_install_dir /mnt/server +login "${STEAM_USER}" "${STEAM_PASS}" "${STEAM_AUTH}" +app_update "${SRCDS_APPID}" validate +quit
+  fi
+  mkdir -p /mnt/server/.steam/sdk32 /mnt/server/.steam/sdk64
+  cp -v linux32/steamclient.so ../.steam/sdk32/steamclient.so || true
+  cp -v linux64/steamclient.so ../.steam/sdk64/steamclient.so || true
+
+startup_cmd: >-
+  ./RustDedicated -batchmode -nographics $( FW="$(echo "${FRAMEWORK}" | tr '[:upper:]' '[:lower:]')";
+  [ "$FW" = "oxide" ] && printf %s "+oxide.directory \"${MODDING_ROOT}\"" ||
+  { [ "$FW" = "vanilla" ] && printf %s "" || printf %s "-carbon.rootdir \"${MODDING_ROOT}\""; } )
+  +server.port ${SERVER_PORT} +server.queryport ${QUERY_PORT}
+  +server.identity "${SERVER_IDENTITY}" +server.gamemode "${GAMEMODE}"
+  +server.level "${LEVEL}" +rcon.port ${RCON_PORT} +rcon.ip 0.0.0.0 +rcon.web true
+  +server.hostname "${HOSTNAME}" +server.description "${DESCRIPTION}"
+  +server.url "${SERVER_URL}" +server.headerimage "${SERVER_IMG}"
+  +server.logoimage "${SERVER_LOGO}" +server.maxplayers ${MAX_PLAYERS}
+  +rcon.password "${RCON_PASS}" +server.saveinterval ${SAVEINTERVAL}
+  +app.port ${APP_PORT}
+  $( [ -z "${MAP_URL}" ] && printf %s "+server.worldsize \"${WORLD_SIZE}\" +server.seed \"${WORLD_SEED}\""
+  || printf %s "+server.levelurl \"${MAP_URL}\"" )
+  $( [ -n "${APP_PUBLIC_IP}" ] && printf %s "+app.publicip \"${APP_PUBLIC_IP}\"" )
+  $( [ -n "${SERVER_TAGS}" ] && printf %s "+server.tags \"${SERVER_TAGS}\"" )
+  $( d="logs/console.log"; mkdir -p "$(dirname "$d")" ) -logfile "logs/console.log" ${ADDITIONAL_ARGS}
+
+configurable:
+  - key: hostname
+    label: Server name
+    default: "A Vivox Rust Server"
+    env: HOSTNAME
+    description: "Public server list title (max 60 chars)."
+    field_type: text
+    required: true
+  - key: description
+    label: Description
+    default: "Powered by Vivox"
+    env: DESCRIPTION
+    description: "Server description. Use \\n for new lines."
+    field_type: text
+  - key: max_players
+    label: Max players
+    default: "100"
+    env: MAX_PLAYERS
+    description: "Maximum concurrent players."
+    field_type: number
+    required: true
+  - key: rcon_pass
+    label: RCON password
+    default: "CHANGEME"
+    env: RCON_PASS
+    description: "Strong password required for RCON and server startup."
+    field_type: password
+    required: true
+  - key: framework
+    label: Modding framework
+    default: "Carbon"
+    env: FRAMEWORK
+    description: "Vanilla, Oxide, or Carbon."
+    options: "Vanilla, Oxide, Carbon, Carbon-Minimal"
+    field_type: select
+    required: true
+  - key: modding_root
+    label: Modding root directory
+    default: "carbon"
+    env: MODDING_ROOT
+    description: "Framework data directory (carbon or oxide)."
+    field_type: text
+  - key: world_size
+    label: World size
+    default: "3000"
+    env: WORLD_SIZE
+    description: "Procedural map size (ignored when custom map URL is set)."
+    field_type: number
+  - key: world_seed
+    label: World seed
+    default: "1234"
+    env: WORLD_SEED
+    description: "Procedural map seed."
+    field_type: text
+  - key: map_url
+    label: Custom map URL
+    default: ""
+    env: MAP_URL
+    description: "Optional direct download URL for a custom map."
+    field_type: text
+  - key: gamemode
+    label: Gamemode
+    default: "vanilla"
+    env: GAMEMODE
+    options: "vanilla, survival, softcore, hardcore"
+    field_type: select
+
+resources:
+  memory_mb: 8192
+  cpu_shares: 2048
+  disk_gb: 50

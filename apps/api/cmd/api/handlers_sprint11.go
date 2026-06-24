@@ -114,10 +114,25 @@ func (a *api) redeployService(c *fiber.Ctx) error {
 		return err
 	}
 	owner := auth.OwnerID(c)
-	if err := a.enq.EnqueueDeploy(c.UserContext(), service.UUIDString(svc.ID), owner); err != nil {
+	if err := a.enq.EnqueueDeploy(c.UserContext(), service.UUIDString(svc.ID), owner, false); err != nil {
 		return err
 	}
 	return c.JSON(fiber.Map{"status": "queued"})
+}
+
+func (a *api) reinstallService(c *fiber.Ctx) error {
+	svc, err := a.loadOwned(c)
+	if err != nil {
+		return err
+	}
+	if service.IsTransient(svc.Status) {
+		return fiber.NewError(fiber.StatusConflict, "service is busy")
+	}
+	owner := auth.OwnerID(c)
+	if err := a.enq.EnqueueDeploy(c.UserContext(), service.UUIDString(svc.ID), owner, true); err != nil {
+		return err
+	}
+	return c.JSON(fiber.Map{"status": "queued", "reinstall": true})
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -109,6 +110,23 @@ func (a *api) createBackup(c *fiber.Ctx) error {
 	}
 	if !svc.NodeID.Valid {
 		return fiber.NewError(409, "service has no node")
+	}
+	maxBackups := svc.ResourceLimits.MaxBackups
+	if maxBackups <= 0 {
+		return fiber.NewError(
+			fiber.StatusForbidden,
+			"backups are not allocated for this service — increase max_backups when deploying or in settings",
+		)
+	}
+	count, err := a.q.CountActiveBackupsForService(c.UserContext(), svc.ID)
+	if err != nil {
+		return err
+	}
+	if count >= maxBackups {
+		return fiber.NewError(
+			fiber.StatusConflict,
+			fmt.Sprintf("backup limit reached (%d/%d) — delete an old backup first", count, maxBackups),
+		)
 	}
 	backup, err := a.q.CreateBackup(c.UserContext(), db.CreateBackupParams{
 		ServiceID: svc.ID,

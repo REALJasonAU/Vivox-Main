@@ -31,6 +31,7 @@ type FileHandler interface {
 	ListFiles(ctx context.Context, t *gen.FileListTask) ([]*gen.FileEntry, error)
 	ReadFile(ctx context.Context, t *gen.FileReadTask) ([]byte, error)
 	WriteFile(ctx context.Context, t *gen.FileWriteTask) error
+	DeleteFile(ctx context.Context, t *gen.FileDeleteTask) error
 }
 
 // TerminalHandler manages interactive PTY sessions.
@@ -247,6 +248,13 @@ func (r *Runner) dispatch(ctx context.Context, env *gen.DownstreamEnvelope) {
 			return
 		}
 		err := r.fileHandler.WriteFile(ctx, action.WriteFile)
+		r.replyCommand(cmdID, err)
+	case *gen.DownstreamEnvelope_DeleteFile:
+		if r.fileHandler == nil {
+			r.replyCommand(cmdID, fmt.Errorf("file operations not available"))
+			return
+		}
+		err := r.fileHandler.DeleteFile(ctx, action.DeleteFile)
 		r.replyCommand(cmdID, err)
 	case *gen.DownstreamEnvelope_TerminalStart:
 		if r.terminalHandler == nil {

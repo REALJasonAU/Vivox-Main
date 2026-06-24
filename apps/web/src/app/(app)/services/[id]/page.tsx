@@ -2,7 +2,7 @@
 
 
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import Link from "next/link";
@@ -37,6 +37,10 @@ import { LogsFeed } from "@/components/logs-feed";
 import { MetricsChart } from "@/components/metrics-chart";
 import { HealthIndicator } from "@/components/health-indicator";
 import { AlertsSection } from "@/components/alerts-section";
+import { MinecraftSwitcher } from "@/components/minecraft-switcher";
+import { PluginManager } from "@/components/plugin-manager";
+import { RustPluginManager } from "@/components/rust-plugin-manager";
+import { ServerCfgEditor } from "@/components/server-cfg-editor";
 import { BackupsTab } from "@/components/backups-tab";
 
 import { ServiceControls } from "@/components/service-controls";
@@ -53,9 +57,71 @@ import { toast } from "@/hooks/useToast";
 
 
 
-const TABS = ["Overview", "Console", "Terminal", "Logs", "Env", "Schedule", "Deployments", "Backups", "Files", "Settings"] as const;
+const BASE_TABS = [
+  "Overview",
+  "Console",
+  "Terminal",
+  "Logs",
+] as const;
 
-type Tab = (typeof TABS)[number];
+const TAIL_TABS = [
+  "Env",
+  "Schedule",
+  "Deployments",
+  "Backups",
+  "Files",
+  "Settings",
+] as const;
+
+function isRustFramework(fw: string): boolean {
+  const fwLower = fw.toLowerCase();
+  return ["oxide", "carbon", "carbon-minimal", "vanilla"].includes(fwLower);
+}
+
+function isMinecraftFramework(fw: string): boolean {
+  return !!fw && !isRustFramework(fw);
+}
+
+function showRustPluginTab(service: Service): boolean {
+  const fw = service.config?.environment?.FRAMEWORK ?? "";
+  return service.type === "game" && isRustFramework(fw) && fw.toLowerCase() !== "vanilla";
+}
+
+function showMcPluginTab(service: Service): boolean {
+  const fw = service.config?.environment?.FRAMEWORK ?? "";
+  return service.type === "game" && isMinecraftFramework(fw) && fw !== "Vanilla";
+}
+
+function showRustConfigTab(service: Service): boolean {
+  const fw = service.config?.environment?.FRAMEWORK ?? "";
+  return service.type === "game" && isRustFramework(fw) && fw.toLowerCase() !== "vanilla";
+}
+
+function buildServiceTabs(service: Service): string[] {
+  const fw = service.config?.environment?.FRAMEWORK ?? "";
+  const showPluginTab = showRustPluginTab(service) || showMcPluginTab(service);
+  const pluginTabLabel = isRustFramework(fw)
+    ? "Plugins"
+    : ["Fabric", "Forge", "NeoForge", "Quilt"].includes(fw)
+      ? "Mods"
+      : "Plugins";
+  return [
+    ...BASE_TABS,
+    ...(showPluginTab ? [pluginTabLabel] : []),
+    ...(showRustConfigTab(service) ? ["Config"] : []),
+    ...TAIL_TABS,
+  ];
+}
+
+function pluginTabLabelFor(service: Service): string | null {
+  const fw = service.config?.environment?.FRAMEWORK ?? "";
+  if (!showRustPluginTab(service) && !showMcPluginTab(service)) return null;
+  return isRustFramework(fw)
+    ? "Plugins"
+    : ["Fabric", "Forge", "NeoForge", "Quilt"].includes(fw)
+      ? "Mods"
+      : "Plugins";
+}
 
 
 
@@ -77,12 +143,17 @@ export default function ServiceDetailPage({
 
   const { id } = use(params);
   const { setContextServiceId } = useCommandPalette();
-  const { data, loading, error } = useApi<Service>(() => servicesApi.get(id), [id]);
+  const { data, loading, error, refetch } = useApi<Service>(() => servicesApi.get(id), [id]);
 
   const [service, setService] = useState<Service | null>(null);
 
-  const [tab, setTab] = useState<Tab>("Overview");
-  const tabIndex = TABS.indexOf(tab);
+  const [tab, setTab] = useState("Overview");
+  const tabs = useMemo(
+    () => (service ? buildServiceTabs(service) : [...BASE_TABS, ...TAIL_TABS]),
+    [service],
+  );
+  const pluginTab = service ? pluginTabLabelFor(service) : null;
+  const tabIndex = tabs.indexOf(tab);
   const prevTabRef = useRef(tabIndex);
   const directionRef = useRef(1);
   const direction = directionRef.current;
@@ -198,9 +269,10 @@ export default function ServiceDetailPage({
 
 
       <TabBar
+        tabs={tabs}
         tab={tab}
         onChange={(t) => {
-          const next = TABS.indexOf(t);
+          const next = tabs.indexOf(t);
           directionRef.current = next >= tabIndex ? 1 : -1;
           prevTabRef.current = tabIndex;
           setTab(t);
@@ -216,10 +288,19 @@ export default function ServiceDetailPage({
           exit={{ opacity: 0, x: direction * -10 }}
           transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
         >
-          {tab === "Overview" && <OverviewTab service={service} />}
+          {tab === "Overview" && <OverviewTab service={service} refetch={refetch} />}
           {tab === "Console" && <Console serviceId={service.id} />}
           {tab === "Terminal" && <ExecTerminal serviceId={service.id} />}
           {tab === "Logs" && <LogsFeed serviceId={service.id} />}
+          {pluginTab && tab === pluginTab && showRustPluginTab(service) && (
+            <RustPluginManager service={service} />
+          )}
+          {pluginTab && tab === pluginTab && showMcPluginTab(service) && (
+            <PluginManager service={service} />
+          )}
+          {tab === "Config" && showRustConfigTab(service) && (
+            <ServerCfgEditor service={service} />
+          )}
           {tab === "Env" && <EnvTab service={service} onChanged={setService} />}
           {tab === "Schedule" && <ScheduleTab serviceId={service.id} />}
           {tab === "Deployments" && <DeploymentsTab serviceId={service.id} />}
@@ -259,13 +340,21 @@ function BackLink() {
 
 
 
-function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+function TabBar({
+  tabs,
+  tab,
+  onChange,
+}: {
+  tabs: string[];
+  tab: string;
+  onChange: (t: string) => void;
+}) {
 
   return (
 
     <div className="flex gap-1 overflow-x-auto border-b border-border">
 
-      {TABS.map((t) => (
+      {tabs.map((t) => (
 
         <button
 
@@ -303,7 +392,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 
 
 
-function OverviewTab({ service }: { service: Service }) {
+function OverviewTab({ service, refetch }: { service: Service; refetch: () => void }) {
   const portLines = displayPortsFromConfig(service.config);
 
   return (
@@ -333,6 +422,11 @@ function OverviewTab({ service }: { service: Service }) {
       </div>
 
       {portLines.length > 0 && <PortCards ports={portLines} status={service.status} />}
+
+      {service.type === "game" &&
+        service.config?.environment?.FRAMEWORK !== undefined && (
+          <MinecraftSwitcher service={service} onSwitched={refetch} />
+        )}
 
       <DomainsSection service={service} />
 

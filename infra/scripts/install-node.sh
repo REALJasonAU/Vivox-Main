@@ -17,7 +17,25 @@ VIVOX_ENV_FILE="infra/prod/.env"
 AGENT_DIR="/opt/vivox-agent"
 AGENT_ENV="/etc/vivox-agent/agent.env"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VIVOX_REPO_URL="https://github.com/REALJasonAU/Vivox-Main"
+VIVOX_BRANCH="main"
+
+_vivox_bootstrap_script_dir() {
+  local script_path="${1:?}"
+  local dir=""
+  if dir="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd)"; then
+    if [[ "$dir" != /dev/fd/* && "$dir" != /proc/*/fd/* && -f "${dir}/node-agent-lib.sh" ]]; then
+      echo "$dir"
+      return 0
+    fi
+  fi
+  dir="/tmp/vivox-agent-scripts-$$"
+  mkdir -p "$dir"
+  curl -fsSL "${VIVOX_REPO_URL}/raw/${VIVOX_BRANCH}/infra/scripts/node-agent-lib.sh" -o "${dir}/node-agent-lib.sh"
+  echo "$dir"
+}
+
+SCRIPT_DIR="$(_vivox_bootstrap_script_dir "${BASH_SOURCE[0]}")"
 # shellcheck source=node-agent-lib.sh
 source "${SCRIPT_DIR}/node-agent-lib.sh"
 
@@ -154,6 +172,17 @@ handle_existing_install() {
   echo ""
   warn "Vivox Agent is already installed."
   echo ""
+
+  # Non-interactive (curl | bash): apply credentials immediately.
+  if [[ ! -t 0 ]]; then
+    ok "Applying credentials from command line..."
+    bash "${AGENT_DIR}/infra/scripts/update-node.sh" \
+      --panel-url "$PANEL_URL" \
+      --token "$AGENT_TOKEN" \
+      --node-id "$NODE_ID"
+    exit 0
+  fi
+
   echo "Options:"
   echo "  1) Update / apply new credentials"
   echo "  2) Uninstall"

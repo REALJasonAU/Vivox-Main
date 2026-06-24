@@ -21,6 +21,8 @@ type ConfigurableField struct {
 	Env          string `yaml:"env" json:"env"`
 	Description  string `yaml:"description" json:"description,omitempty"`
 	Options      string `yaml:"options" json:"options,omitempty"`
+	FieldType    string `yaml:"field_type" json:"field_type,omitempty"`
+	Required     bool   `yaml:"required" json:"required,omitempty"`
 }
 
 // TemplateResources are the default resource limits applied to a service created
@@ -40,9 +42,28 @@ type Template struct {
 	Image        string              `yaml:"image" json:"image"`
 	Ports        []string            `yaml:"ports" json:"ports"`
 	Env          map[string]string   `yaml:"env" json:"env"`
-	Configurable []ConfigurableField `yaml:"configurable" json:"configurable"`
-	StartupCmd   string              `yaml:"startup_cmd" json:"startup_cmd,omitempty"`
-	Resources    TemplateResources   `yaml:"resources" json:"resources"`
+	Configurable  []ConfigurableField `yaml:"configurable" json:"configurable"`
+	StartupCmd     string              `yaml:"startup_cmd" json:"startup_cmd,omitempty"`
+	InstallScript  string              `yaml:"install_script" json:"install_script,omitempty"`
+	InstallerImage string              `yaml:"installer_image" json:"installer_image,omitempty"`
+	Resources      TemplateResources   `yaml:"resources" json:"resources"`
+}
+
+// DefaultInstallScript runs when a template does not define its own install_script.
+// Every service gets a persistent /mnt/server volume; this prepares it on first boot.
+const DefaultInstallScript = `#!/bin/bash
+set -euo pipefail
+echo "[vivox] Preparing server data directory..."
+mkdir -p /mnt/server
+echo "[vivox] Install complete."
+`
+
+// NormalizeServiceConfig fills in defaults for persisted service config.
+func NormalizeServiceConfig(cfg domain.ServiceConfig) domain.ServiceConfig {
+	if strings.TrimSpace(cfg.InstallScript) == "" {
+		cfg.InstallScript = DefaultInstallScript
+	}
+	return cfg
 }
 
 // LoadTemplates parses every *.yaml/*.yml file in dir into a template registry
@@ -135,10 +156,18 @@ func (t *Template) BuildConfig(params map[string]string) domain.ServiceConfig {
 		ports = []string{v}
 	}
 
+	install := t.InstallScript
+	if install == "" {
+		install = DefaultInstallScript
+	}
+
 	return domain.ServiceConfig{
-		Image:       image,
-		Ports:       ports,
-		Environment: env,
+		Image:          image,
+		Ports:          ports,
+		Environment:    env,
+		StartupCmd:     t.StartupCmd,
+		InstallScript:  install,
+		InstallerImage: t.InstallerImage,
 	}
 }
 

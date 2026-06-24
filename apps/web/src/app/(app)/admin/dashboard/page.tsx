@@ -23,7 +23,7 @@ import {
   YAxis,
 } from "recharts";
 import { useApi } from "@/hooks/useApi";
-import { useLiveNodeStatuses, useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
+import { useLiveNodeStatuses, useLiveServiceStatuses, mergeNodeWithLive } from "@/hooks/useLiveStatuses";
 import { adminApi, nodesApi } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import type { Customer, Node, Service, ServiceStatus } from "@/lib/types";
@@ -121,12 +121,7 @@ export default function AdminDashboardPage() {
   );
   const liveNodes = useLiveNodeStatuses(nodes ?? []);
   const displayNodes = useMemo(
-    () =>
-      (nodes ?? []).map((n) => {
-        const live = liveNodes.get(n.id);
-        if (!live) return n;
-        return { ...n, status: live.status, capacity: live.capacity ?? n.capacity };
-      }),
+    () => (nodes ?? []).map((n) => mergeNodeWithLive(n, liveNodes.get(n.id))),
     [nodes, liveNodes],
   );
 

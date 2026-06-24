@@ -10,6 +10,16 @@ image: nginx:alpine
 ports:
   - "8080:80/tcp"
 
+install_script: |
+  #!/bin/bash
+  set -euo pipefail
+  mkdir -p /mnt/server/html
+  if [ -n "${ASSET_URL:-}" ]; then
+    echo "[vivox] Downloading static site bundle..."
+    curl -fsSL "${ASSET_URL}" -o /tmp/site.zip
+    unzip -o /tmp/site.zip -d /mnt/server/html
+  fi
+
 env: {}
 
 configurable:

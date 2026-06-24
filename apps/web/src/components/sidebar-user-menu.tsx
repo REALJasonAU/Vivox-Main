@@ -3,16 +3,23 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogOut, User as UserIcon, ChevronUp } from "lucide-react";
+import { LogOut, User as UserIcon, ChevronUp, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "@/lib/auth-client";
 
 interface SidebarUserMenuProps {
   collapsed: boolean;
+  isAdmin?: boolean;
+  inAdminArea?: boolean;
   onNavigate?: () => void;
 }
 
-export function SidebarUserMenu({ collapsed, onNavigate }: SidebarUserMenuProps) {
+export function SidebarUserMenu({
+  collapsed,
+  isAdmin = false,
+  inAdminArea = false,
+  onNavigate,
+}: SidebarUserMenuProps) {
   const router = useRouter();
   const { data } = useSession();
   const [open, setOpen] = useState(false);
@@ -20,6 +27,12 @@ export function SidebarUserMenu({ collapsed, onNavigate }: SidebarUserMenuProps)
   const user = data?.user;
   const initial = (user?.name ?? user?.email ?? "?").charAt(0).toUpperCase();
   const displayName = user?.name ?? user?.email ?? "Account";
+
+  const closeAnd = (fn: () => void) => {
+    setOpen(false);
+    onNavigate?.();
+    fn();
+  };
 
   return (
     <div className="relative">
@@ -64,17 +77,34 @@ export function SidebarUserMenu({ collapsed, onNavigate }: SidebarUserMenuProps)
           >
             <button
               type="button"
-              onClick={() => {
-                onNavigate?.();
-                router.push("/settings");
-              }}
+              onClick={() => closeAnd(() => router.push("/settings"))}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-raised hover:text-foreground"
             >
               <UserIcon className="size-4 shrink-0" /> Profile & settings
             </button>
+            {isAdmin && !inAdminArea && (
+              <button
+                type="button"
+                onClick={() => closeAnd(() => router.push("/admin/dashboard"))}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-vivox-500/10 hover:text-vivox-500"
+              >
+                <Shield className="size-4 shrink-0" /> Admin panel
+              </button>
+            )}
+            {isAdmin && inAdminArea && (
+              <button
+                type="button"
+                onClick={() => closeAnd(() => router.push("/dashboard"))}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-raised hover:text-foreground"
+              >
+                User panel
+              </button>
+            )}
+            <div className="my-1 h-px bg-border/60" />
             <button
               type="button"
               onClick={async () => {
+                setOpen(false);
                 onNavigate?.();
                 await signOut();
                 router.push("/login");

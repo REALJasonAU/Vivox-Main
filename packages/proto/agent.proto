@@ -34,6 +34,7 @@ message DownstreamEnvelope {
     TerminalInputTask terminal_input = 9;
     TerminalResizeTask terminal_resize = 10;
     BackupTask backup_task = 11;
+    FileDeleteTask delete_file = 12;
   }
 }
 
@@ -78,6 +79,7 @@ message FileEntry { string name = 1; bool is_dir = 2; int64 size = 3; string mod
 message FileReadTask { string service_id = 1; string path = 2; }
 message FileReadResult { string service_id = 1; string path = 2; bytes content = 3; string error = 4; string command_id = 5; }
 message FileWriteTask { string service_id = 1; string path = 2; bytes content = 3; }
+message FileDeleteTask { string service_id = 1; string path = 2; }
 
 message TerminalStartTask { string service_id = 1; string session_id = 2; string shell = 3; int32 cols = 4; int32 rows = 5; }
 message TerminalInputTask { string service_id = 1; string session_id = 2; bytes data = 3; }

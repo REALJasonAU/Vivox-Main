@@ -1,5 +1,4 @@
 # Generic Docker application template (advanced deploy tab).
-# The operator supplies the image, ports, and environment at deploy time.
 id: docker
 name: Generic Docker App
 description: Deploy any Docker image with custom ports and environment variables.
@@ -9,15 +8,25 @@ image: nginx:latest
 ports: []
 env: {}
 
+install_script: |
+  #!/bin/bash
+  set -euo pipefail
+  mkdir -p /mnt/server
+  echo "[vivox] Workspace ready."
+
 configurable:
   - key: image
     label: Container Image
     default: "nginx:latest"
     env: ""
+    field_type: text
+    required: true
   - key: port
     label: Container Port
     default: "8080:80/tcp"
     env: ""
+    field_type: text
+    required: true
 
 resources:
   memory_mb: 512

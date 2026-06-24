@@ -223,12 +223,24 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 	apiGroup.Get("/services/:id/health", a.getServiceHealth)
 	apiGroup.Get("/services/:id/logs", a.getServiceLogs)
 	apiGroup.Post("/services/:id/redeploy", a.redeployService)
+	apiGroup.Post("/services/:id/reinstall", a.reinstallService)
 	apiGroup.Patch("/services/:id/tags", a.updateServiceTags)
 
 	apiGroup.Get("/services/:id/alerts", a.listAlertRules)
 	apiGroup.Post("/services/:id/alerts", a.createAlertRule)
 	apiGroup.Delete("/services/:id/alerts/:ruleId", a.deleteAlertRule)
 	apiGroup.Patch("/services/:id/alerts/:ruleId", a.patchAlertRule)
+
+	apiGroup.Get("/services/:id/plugins", a.listPlugins)
+	apiGroup.Get("/services/:id/plugins/search", a.searchPlugins)
+	apiGroup.Post("/services/:id/plugins/install", a.installPlugin)
+	apiGroup.Delete("/services/:id/plugins/:pluginId", a.uninstallPlugin)
+	apiGroup.Post("/services/:id/plugins/:pluginId/update", a.updatePlugin)
+	apiGroup.Post("/services/:id/plugins/scan", a.scanPlugins)
+
+	apiGroup.Get("/services/:id/cfg", a.cfgRead)
+	apiGroup.Put("/services/:id/cfg", a.cfgWrite)
+	apiGroup.Get("/services/:id/cfg/convars", a.cfgConvars)
 
 	apiGroup.Get("/services/:id/backups", a.listBackups)
 	apiGroup.Post("/services/:id/backups", a.createBackup)

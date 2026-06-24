@@ -15,12 +15,14 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 
@@ -108,20 +110,56 @@ func (m *Manager) StartService(ctx context.Context, t *gen.StartServiceTask) err
 
 	containerEnv, runtime := peelRuntimeEnv(t.GetEnvVars())
 
+	if runtime.ForceReinstall {
+		if err := m.clearInstallMarker(ctx, serviceID); err != nil {
+			return fmt.Errorf("clear install marker for reinstall: %w", err)
+		}
+	}
+
+	installScript := strings.TrimSpace(runtime.InstallScript)
+	if runtime.InstallerImage != "" && installScript != "" {
+		needInstall := runtime.ForceReinstall
+		if !needInstall {
+			exists, err := m.installMarkerExists(ctx, serviceID)
+			if err != nil {
+				return fmt.Errorf("check install marker: %w", err)
+			}
+			needInstall = !exists
+		}
+		if needInstall {
+			if err := m.runExternalInstall(ctx, serviceID, runtime.InstallerImage, installScript, containerEnv); err != nil {
+				return fmt.Errorf("run installer: %w", err)
+			}
+		}
+	}
+
+	imgEntrypoint, imgCmd, err := m.imageCommand(ctx, t.GetContainerImage())
+	if err != nil {
+		return fmt.Errorf("inspect image %q: %w", t.GetContainerImage(), err)
+	}
+
+	lifecycle := buildLifecycleScript(runtime, imgEntrypoint, imgCmd)
+
 	cfg := &container.Config{
 		Image: t.GetContainerImage(),
 		Env:   envSlice(containerEnv),
+		Cmd:   []string{"/bin/sh", "-c", lifecycle},
 		Labels: map[string]string{
 			labelManagedBy: managedByValue,
 			labelService:   serviceID,
 		},
-	}
-	if runtime.StartupCmd != "" {
-		cfg.Cmd = []string{"/bin/sh", "-c", runtime.StartupCmd}
+		WorkingDir: dataMountPath,
 	}
 
 	hostCfg := &container.HostConfig{
 		Resources: container.Resources{Memory: t.GetMemoryLimitBytes()},
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeVolume,
+				Source: dataVolumeName(serviceID),
+				Target: dataMountPath,
+			},
+		},
 	}
 	if runtime.CPUShares > 0 {
 		threads := runtime.CPUShares / 1024
@@ -223,6 +261,27 @@ func (m *Manager) pullImage(ctx context.Context, ref string) error {
 	defer rc.Close()
 	_, err = io.Copy(io.Discard, rc)
 	return err
+}
+
+// removeDataVolume deletes the persistent server files volume for a service.
+func (m *Manager) removeDataVolume(ctx context.Context, serviceID string) error {
+	name := dataVolumeName(serviceID)
+	if err := m.cli.VolumeRemove(ctx, name, true); err != nil {
+		if client.IsErrNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// imageCommand returns the image default ENTRYPOINT and CMD for post-install startup.
+func (m *Manager) imageCommand(ctx context.Context, ref string) (entrypoint, cmd []string, err error) {
+	inspect, _, err := m.cli.ImageInspectWithRaw(ctx, ref)
+	if err != nil {
+		return nil, nil, err
+	}
+	return append([]string{}, inspect.Config.Entrypoint...), append([]string{}, inspect.Config.Cmd...), nil
 }
 
 // track records the running handle and starts the log + metrics pumps under a
@@ -377,18 +436,6 @@ func envSlice(env map[string]string) []string {
 	return out
 }
 
-type runtimeEnv struct {
-	CPUShares  int64
-	DiskGB     int64
-	StartupCmd string
-}
-
-const (
-	envVivoxCPU     = "VIVOX_CPU_SHARES"
-	envVivoxDisk    = "VIVOX_DISK_GB"
-	envVivoxStartup = "VIVOX_STARTUP_CMD"
-)
-
 // peelRuntimeEnv strips Vivox control-plane env vars consumed by the agent
 // before passing the remainder to the container.
 func peelRuntimeEnv(env map[string]string) (map[string]string, runtimeEnv) {
@@ -405,6 +452,14 @@ func peelRuntimeEnv(env map[string]string) (map[string]string, runtimeEnv) {
 			rt.DiskGB, _ = strconv.ParseInt(v, 10, 64)
 		case envVivoxStartup:
 			rt.StartupCmd = v
+		case envVivoxInstall:
+			rt.InstallScript = v
+		case envVivoxInstallerImage:
+			rt.InstallerImage = v
+		case envVivoxSkipInlineInstall:
+			rt.SkipInlineInstall = v == "1" || strings.EqualFold(v, "true")
+		case envVivoxForce:
+			rt.ForceReinstall = v == "1" || strings.EqualFold(v, "true")
 		default:
 			out[k] = v
 		}

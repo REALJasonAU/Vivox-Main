@@ -16,13 +16,18 @@ const TypeDeployService = "deploy:service"
 
 // DeployServicePayload is the JSON body of a deploy task.
 type DeployServicePayload struct {
-	ServiceID string `json:"service_id"`
-	ActorID   string `json:"actor_id"`
+	ServiceID      string `json:"service_id"`
+	ActorID        string `json:"actor_id"`
+	ForceReinstall bool   `json:"force_reinstall,omitempty"`
 }
 
 // NewDeployServiceTask builds an asynq task for the given service.
-func NewDeployServiceTask(serviceID, actorID string) (*asynq.Task, error) {
-	payload, err := json.Marshal(DeployServicePayload{ServiceID: serviceID, ActorID: actorID})
+func NewDeployServiceTask(serviceID, actorID string, forceReinstall bool) (*asynq.Task, error) {
+	payload, err := json.Marshal(DeployServicePayload{
+		ServiceID:      serviceID,
+		ActorID:        actorID,
+		ForceReinstall: forceReinstall,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -40,8 +45,8 @@ func NewEnqueuer(opt asynq.RedisClientOpt) *Enqueuer {
 }
 
 // EnqueueDeploy schedules a deploy of the service.
-func (e *Enqueuer) EnqueueDeploy(ctx context.Context, serviceID, actorID string) error {
-	task, err := NewDeployServiceTask(serviceID, actorID)
+func (e *Enqueuer) EnqueueDeploy(ctx context.Context, serviceID, actorID string, forceReinstall bool) error {
+	task, err := NewDeployServiceTask(serviceID, actorID, forceReinstall)
 	if err != nil {
 		return err
 	}

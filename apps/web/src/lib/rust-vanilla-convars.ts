@@ -1,0 +1,30 @@
+import type { RustConvar } from "./types";
+
+// Core Rust server convars not included in the Carbon API.
+export const VANILLA_CONVARS: RustConvar[] = [
+  { Name: "fps.limit", Help: "Server frame-rate cap. 30=saves CPU, 60=recommended, 256=max.", Type: "int", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 60 },
+  { Name: "server.compression", Help: "Network packet compression level (0–6). Higher = less bandwidth, more CPU.", Type: "int", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 4 },
+  { Name: "server.netcache", Help: "Size of the server-side network object cache.", Type: "int", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 20 },
+  { Name: "server.saveinterval", Help: "How often the world saves to disk (seconds).", Type: "int", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 600 },
+  { Name: "server.pve", Help: "Enable PvE mode — players cannot damage other players.", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: false },
+  { Name: "server.stability", Help: "Enable structural stability system for buildings.", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+  { Name: "server.radiation", Help: "Enable radiation zones on the map.", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+  { Name: "server.itemdespawn", Help: "Seconds before dropped items despawn.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 600 },
+  { Name: "server.corpsedespawn", Help: "Seconds before player corpses despawn.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 300 },
+  { Name: "server.playerservertimeout", Help: "Seconds before an idle player is kicked.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 60 },
+  { Name: "decay.scale", Help: "Global decay multiplier. 0=off, 0.5=half speed, 1=normal, 2=double.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 1.0 },
+  { Name: "decay.upkeep", Help: "Enable the building upkeep system (Tool Cupboard resources).", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+  { Name: "decay.deploy_maxhealth_after_decay_sec", Help: "Seconds of decay before a building reaches max decay.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 288000 },
+  { Name: "server.events", Help: "Enable in-game events such as helicopter and cargo ship.", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+  { Name: "server.airdropfrequency", Help: "Airdrop call frequency (lower = more frequent).", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 2 },
+  { Name: "server.airdropspeed", Help: "Speed of the airdrop supply plane.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 25 },
+  { Name: "server.globalchat", Help: "Enable global chat (all players see all messages).", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+  { Name: "chat.serverlog", Help: "Log all player chat to the server console.", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+  { Name: "antihack.enabled", Help: "Enable the server-side anticheat system.", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+  { Name: "antihack.speedhackdesync", Help: "Max speed desync (units/sec) allowed before flagging as speed hack.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 10 },
+  { Name: "antihack.flyhack_protection", Help: "Fly-hack protection level (0=off, 6=strict).", Type: "int", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 6 },
+  { Name: "antihack.noclip_protection", Help: "No-clip protection level (0=off, 4=strict).", Type: "int", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 4 },
+  { Name: "env.time", Help: "Current in-game time of day (0–24).", Type: "float", Saved: false, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 12 },
+  { Name: "env.timescale", Help: "Speed of time passing. 1=normal, 0.5=half speed.", Type: "float", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: 1.0 },
+  { Name: "env.progresstime", Help: "Whether time progresses automatically.", Type: "bool", Saved: true, ServerAdmin: true, ServerUser: false, Clientside: false, Serverside: true, DefaultValue: true },
+];

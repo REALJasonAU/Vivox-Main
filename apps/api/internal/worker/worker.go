@@ -68,7 +68,15 @@ func (p *Processor) handleDeploy(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("create deployment: %w", err)
 	}
 
-	if err := p.svc.DispatchStart(ctx, payload.ActorID, svc); err != nil {
+	if payload.ForceReinstall {
+		if _, err := p.svc.SetStatus(ctx, payload.ActorID, svc.ID, db.ServiceStatusPROVISIONING); err != nil {
+			p.log.Warn("transition to PROVISIONING failed", "err", err)
+		}
+	}
+
+	if err := p.svc.DispatchStart(ctx, payload.ActorID, svc, service.StartOptions{
+		ForceReinstall: payload.ForceReinstall,
+	}); err != nil {
 		p.log.Warn("deploy dispatch failed", "service_id", payload.ServiceID, "err", err)
 		p.failDeployment(ctx, dep.ID, err)
 		// Move the service to CRASHED so the UI reflects the failure.

@@ -256,6 +256,10 @@ func (h *mockFileHandler) WriteFile(_ context.Context, _ *gen.FileWriteTask) err
 	return nil
 }
 
+func (h *mockFileHandler) DeleteFile(_ context.Context, _ *gen.FileDeleteTask) error {
+	return nil
+}
+
 func (h *mockHandler) generate(ctx context.Context, serviceID, image string) {
 	lines := []string{
 		"Starting container image " + image,

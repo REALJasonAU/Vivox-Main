@@ -1,41 +1,354 @@
-# Minecraft (Java) game server template.
-# Backed by the itzg/minecraft-server image (plan section 9).
 id: minecraft
 name: Minecraft Server
-description: Java Edition Minecraft server (itzg/minecraft-server) with configurable RAM.
+description: |
+  Java Edition Minecraft server with support for Paper, Purpur, Fabric, Forge, NeoForge, Quilt,
+  Mohist, and Arclight. Switch frameworks at any time from the panel — world data is always preserved.
+  Bukkit-based loaders (Paper, Purpur, Mohist, Arclight) support plugins. Mod loaders (Fabric, Forge,
+  NeoForge, Quilt) support mods. Mohist and Arclight support both simultaneously.
 type: game
-image: itzg/minecraft-server:latest
+image: eclipse-temurin:21-jre-alpine
+installer_image: eclipse-temurin:21-jdk-alpine
 
-# Game servers use explicit port bindings (see plan section 5).
 ports:
-  - "25565:25565/tcp"
+  - "0.0.0.0:25565:25565/tcp"
 
-# Static environment applied to every Minecraft deploy.
-env:
-  EULA: "TRUE"
+startup_cmd: |
+  cd /mnt/server
+  if [ -f server.jar ]; then
+    exec java -Xmx${MEMORY}M -Xms${MEMORY}M ${JVM_FLAGS} -jar server.jar nogui
+  elif ls forge-*-shim.jar 2>/dev/null | head -1 | grep -q .; then
+    exec java -Xmx${MEMORY}M -Xms${MEMORY}M ${JVM_FLAGS} @user_jvm_args.txt @libraries/net/minecraftforge/forge/*/unix_args.txt nogui
+  elif ls neoforge-*-shim.jar 2>/dev/null | head -1 | grep -q .; then
+    exec java -Xmx${MEMORY}M -Xms${MEMORY}M ${JVM_FLAGS} @user_jvm_args.txt @libraries/net/neoforged/neoforge/*/unix_args.txt nogui
+  else
+    echo "[Vivox] ERROR: No server JAR found. Trigger a reinstall from the panel." >&2
+    sleep 60
+  fi
 
-# User-tunable fields surfaced in the deploy wizard.
-configurable:
-  - key: ram
-    label: Server RAM
-    default: "2G"
-    env: MEMORY
-    description: "Java heap size passed to the Minecraft server."
-    options: "1G, 2G, 4G, 8G"
-  - key: version
-    label: Minecraft Version
-    default: "LATEST"
-    env: VERSION
-    description: "Game version tag or LATEST."
-    options: "LATEST, 1.21.1, 1.20.4"
-  - key: difficulty
-    label: Difficulty
-    default: "normal"
-    env: DIFFICULTY
-    description: "World difficulty."
-    options: "peaceful, easy, normal, hard"
+install_script: |
+  #!/bin/bash
+  set -euo pipefail
+  apk add --no-cache bash curl python3 2>/dev/null || true
+  cd /mnt/server
+
+  # Accept EULA
+  echo "eula=true" > eula.txt
+
+  MC_VERSION="${MC_VERSION:-1.21.4}"
+  FRAMEWORK="${FRAMEWORK:-Paper}"
+  FRAMEWORK_LC=$(echo "$FRAMEWORK" | tr '[:upper:]' '[:lower:]')
+
+  # Remove old framework files (but never world/, plugins/, mods/, config/)
+  rm -f server.jar forge-*-shim.jar neoforge-*-shim.jar fabric-server-launch.jar \
+        quilt-server-launch.jar *.jar.bak run.sh user_jvm_args.txt 2>/dev/null || true
+  rm -rf libraries/ versions/ .fabric/ .quilt/ 2>/dev/null || true
+
+  # ── Paper ────────────────────────────────────────────────────────────────────
+  install_paper() {
+    echo "[Vivox] Fetching latest Paper build for ${MC_VERSION}..."
+    BUILD=$(curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds" \
+      | python3 -c "import sys,json; builds=json.load(sys.stdin)['builds']; print(sorted(builds,key=lambda b:b['build'])[-1]['build'])")
+    curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/paper-${MC_VERSION}-${BUILD}.jar" \
+      -o server.jar
+    echo "[Vivox] Paper ${MC_VERSION} build ${BUILD} installed."
+  }
+
+  # ── Purpur ───────────────────────────────────────────────────────────────────
+  install_purpur() {
+    echo "[Vivox] Fetching Purpur ${MC_VERSION}..."
+    curl -fsSL "https://api.purpurmc.org/v2/purpur/${MC_VERSION}/latest/download" -o server.jar
+    echo "[Vivox] Purpur ${MC_VERSION} (latest build) installed."
+  }
+
+  # ── Vanilla ──────────────────────────────────────────────────────────────────
+  install_vanilla() {
+    echo "[Vivox] Fetching Vanilla ${MC_VERSION}..."
+    MANIFEST=$(curl -fsSL "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json")
+    VERSION_URL=$(echo "$MANIFEST" | python3 -c \
+      "import sys,json; v=[x for x in json.load(sys.stdin)['versions'] if x['id']=='${MC_VERSION}']; \
+       print(v[0]['url'] if v else exit(1))")
+    SERVER_URL=$(curl -fsSL "$VERSION_URL" | python3 -c \
+      "import sys,json; print(json.load(sys.stdin)['downloads']['server']['url'])")
+    curl -fsSL "$SERVER_URL" -o server.jar
+    echo "[Vivox] Vanilla ${MC_VERSION} installed."
+  }
+
+  # ── Fabric ───────────────────────────────────────────────────────────────────
+  install_fabric() {
+    FABRIC_LOADER="${FABRIC_LOADER_VERSION:-0.16.9}"
+    echo "[Vivox] Installing Fabric loader ${FABRIC_LOADER} for MC ${MC_VERSION}..."
+    INSTALLER_URL=$(curl -fsSL "https://meta.fabricmc.net/v2/versions/installer" \
+      | python3 -c "import sys,json; v=json.load(sys.stdin); print(v[0]['url'])")
+    curl -fsSL "$INSTALLER_URL" -o /tmp/fabric-installer.jar
+    java -jar /tmp/fabric-installer.jar server \
+      -mcversion "${MC_VERSION}" \
+      -loader "${FABRIC_LOADER}" \
+      -downloadMinecraft \
+      -dir /mnt/server
+    mv /mnt/server/fabric-server-launch.jar /mnt/server/server.jar 2>/dev/null || true
+    rm -f /tmp/fabric-installer.jar
+    echo "[Vivox] Fabric ${FABRIC_LOADER} for MC ${MC_VERSION} installed."
+  }
+
+  # ── Quilt ────────────────────────────────────────────────────────────────────
+  install_quilt() {
+    QUILT_LOADER="${QUILT_LOADER_VERSION:-0.27.1}"
+    echo "[Vivox] Installing Quilt loader ${QUILT_LOADER} for MC ${MC_VERSION}..."
+    INSTALLER_URL=$(curl -fsSL "https://meta.quiltmc.org/v3/versions/installer" \
+      | python3 -c "import sys,json; v=json.load(sys.stdin); print(v[0]['url'])")
+    curl -fsSL "$INSTALLER_URL" -o /tmp/quilt-installer.jar
+    java -jar /tmp/quilt-installer.jar install server "${MC_VERSION}" \
+      --loader-version "${QUILT_LOADER}" \
+      --download-server \
+      --install-dir /mnt/server
+    mv /mnt/server/quilt-server-launch.jar /mnt/server/server.jar 2>/dev/null || true
+    rm -f /tmp/quilt-installer.jar
+    echo "[Vivox] Quilt ${QUILT_LOADER} for MC ${MC_VERSION} installed."
+  }
+
+  # ── Forge ────────────────────────────────────────────────────────────────────
+  install_forge() {
+    FORGE_VER="${FORGE_VERSION:-}"
+    if [ -z "$FORGE_VER" ]; then
+      echo "[Vivox] Looking up latest Forge for MC ${MC_VERSION}..."
+      FORGE_VER=$(curl -fsSL "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json" \
+        | python3 -c "
+import sys,json
+d=json.load(sys.stdin)['promos']
+key='${MC_VERSION}-latest'
+if key in d: print(d[key])
+else:
+  rkey='${MC_VERSION}-recommended'
+  print(d.get(rkey, ''))
+")
+    fi
+    if [ -z "$FORGE_VER" ]; then
+      echo "[Vivox] ERROR: No Forge build found for MC ${MC_VERSION}. Try specifying FORGE_VERSION manually." >&2
+      exit 1
+    fi
+    FULL="${MC_VERSION}-${FORGE_VER}"
+    echo "[Vivox] Installing Forge ${FULL}..."
+    INSTALLER_URL="https://maven.minecraftforge.net/net/minecraftforge/forge/${FULL}/forge-${FULL}-installer.jar"
+    curl -fsSL "$INSTALLER_URL" -o /tmp/forge-installer.jar
+    java -jar /tmp/forge-installer.jar --installServer /mnt/server
+    rm -f /tmp/forge-installer.jar /mnt/server/forge-*-installer.jar 2>/dev/null || true
+    [ -f /mnt/server/user_jvm_args.txt ] || echo "-Xmx${MEMORY:-2048}M" > /mnt/server/user_jvm_args.txt
+    touch /mnt/server/forge-${FULL}-shim.jar
+    echo "[Vivox] Forge ${FULL} installed."
+  }
+
+  # ── NeoForge ─────────────────────────────────────────────────────────────────
+  install_neoforge() {
+    NEOFORGE_VER="${NEOFORGE_VERSION:-}"
+    MC_MINOR=$(echo "$MC_VERSION" | cut -d. -f2,3)
+    if [ -z "$NEOFORGE_VER" ]; then
+      echo "[Vivox] Looking up latest NeoForge for MC ${MC_VERSION}..."
+      NEOFORGE_VER=$(curl -fsSL "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml" \
+        | grep -oP "<version>${MC_MINOR//./\\.}\.[0-9]+</version>" \
+        | grep -oP '[0-9.]+' | sort -V | tail -1)
+    fi
+    if [ -z "$NEOFORGE_VER" ]; then
+      echo "[Vivox] ERROR: No NeoForge build found for MC ${MC_VERSION}." >&2
+      exit 1
+    fi
+    echo "[Vivox] Installing NeoForge ${NEOFORGE_VER}..."
+    curl -fsSL "https://maven.neoforged.net/releases/net/neoforged/neoforge/${NEOFORGE_VER}/neoforge-${NEOFORGE_VER}-installer.jar" \
+      -o /tmp/neoforge-installer.jar
+    java -jar /tmp/neoforge-installer.jar --installServer /mnt/server
+    rm -f /tmp/neoforge-installer.jar 2>/dev/null || true
+    [ -f /mnt/server/user_jvm_args.txt ] || echo "-Xmx${MEMORY:-2048}M" > /mnt/server/user_jvm_args.txt
+    touch /mnt/server/neoforge-${NEOFORGE_VER}-shim.jar
+    echo "[Vivox] NeoForge ${NEOFORGE_VER} installed."
+  }
+
+  # ── Mohist (Paper + Forge hybrid) ────────────────────────────────────────────
+  install_mohist() {
+    echo "[Vivox] Fetching Mohist ${MC_VERSION}..."
+    BUILD=$(curl -fsSL "https://mohistmc.com/api/v2/projects/mohist/${MC_VERSION}/builds" \
+      | python3 -c "import sys,json; builds=json.load(sys.stdin).get('builds',[]); print(builds[-1]['number'] if builds else '')" 2>/dev/null || echo "")
+    if [ -z "$BUILD" ]; then
+      curl -fsSL "https://mohistmc.com/api/v2/projects/mohist/${MC_VERSION}/builds/latest/download" -o server.jar
+    else
+      curl -fsSL "https://mohistmc.com/api/v2/projects/mohist/${MC_VERSION}/builds/${BUILD}/download" -o server.jar
+    fi
+    echo "[Vivox] Mohist ${MC_VERSION} installed."
+  }
+
+  # ── Arclight (Paper + Fabric hybrid) ─────────────────────────────────────────
+  install_arclight() {
+    echo "[Vivox] Fetching Arclight for MC ${MC_VERSION}..."
+    ARCLIGHT_TYPE="${ARCLIGHT_TYPE:-fabric}"
+    API_URL="https://api.github.com/repos/IzzelAliz/Arclight/releases"
+    JAR_URL=$(curl -fsSL "$API_URL?per_page=20" \
+      | python3 -c "
+import sys,json,re
+rels=json.load(sys.stdin)
+mc='${MC_VERSION}'
+typ='${ARCLIGHT_TYPE}'
+for r in rels:
+    for a in r.get('assets',[]):
+        n=a['name']
+        if re.search(rf'arclight-{re.escape(typ)}-{re.escape(mc)}', n, re.I):
+            print(a['browser_download_url']); exit(0)
+for r in rels:
+    for a in r.get('assets',[]):
+        if '${MC_VERSION}' in a['name'] and a['name'].endswith('.jar'):
+            print(a['browser_download_url']); exit(0)
+exit(1)
+")
+    if [ -z "$JAR_URL" ]; then
+      echo "[Vivox] ERROR: No Arclight release found for MC ${MC_VERSION}." >&2
+      exit 1
+    fi
+    curl -fsSL "$JAR_URL" -o server.jar
+    echo "[Vivox] Arclight (${ARCLIGHT_TYPE}) for MC ${MC_VERSION} installed."
+  }
+
+  # ── Dispatch ─────────────────────────────────────────────────────────────────
+  case "$FRAMEWORK_LC" in
+    paper)    install_paper ;;
+    purpur)   install_purpur ;;
+    vanilla)  install_vanilla ;;
+    fabric)   install_fabric ;;
+    quilt)    install_quilt ;;
+    forge)    install_forge ;;
+    neoforge) install_neoforge ;;
+    mohist)   install_mohist ;;
+    arclight) install_arclight ;;
+    *)        echo "[Vivox] Unknown framework '${FRAMEWORK}', defaulting to Paper."; install_paper ;;
+  esac
+
+  if [ ! -f /mnt/server/server.properties ]; then
+    cat > /mnt/server/server.properties <<PROPS
+server-port=25565
+motd=${MOTD:-A Vivox Minecraft Server}
+max-players=${MAX_PLAYERS:-20}
+difficulty=${DIFFICULTY:-normal}
+gamemode=${GAMEMODE:-survival}
+online-mode=${ONLINE_MODE:-true}
+level-seed=${LEVEL_SEED:-}
+view-distance=10
+simulation-distance=8
+PROPS
+  fi
+
+  echo "$FRAMEWORK" > /mnt/server/.vivox-framework
+  echo "MC_VERSION=${MC_VERSION}" >> /mnt/server/.vivox-framework
+
+  echo "[Vivox] Minecraft install complete: ${FRAMEWORK} ${MC_VERSION}"
 
 resources:
-  memory_mb: 2048
-  cpu_shares: 1024
-  disk_gb: 10
+  memory_mb: 4096
+  cpu_shares: 2048
+  disk_gb: 30
+
+configurable:
+  - key: FRAMEWORK
+    label: Server Framework
+    env: FRAMEWORK
+    default: "Paper"
+    field_type: select
+    options: "Paper, Purpur, Vanilla, Fabric, Quilt, Forge, NeoForge, Mohist, Arclight"
+    description: "Bukkit-based (Paper/Purpur) = plugins. Mod loaders (Fabric/Forge/NeoForge/Quilt) = mods. Hybrids (Mohist/Arclight) = both."
+    required: true
+
+  - key: MC_VERSION
+    label: Minecraft Version
+    env: MC_VERSION
+    default: "1.21.4"
+    field_type: text
+    description: "Minecraft version string, e.g. 1.21.4 or 1.20.1. Must be supported by your chosen framework."
+    required: true
+
+  - key: MEMORY
+    label: Java Heap (MB)
+    env: MEMORY
+    default: "3072"
+    field_type: number
+    description: "JVM -Xmx/-Xms in megabytes. Min 1024. Use 4096+ for modpacks."
+    required: true
+
+  - key: JVM_FLAGS
+    label: JVM Flags
+    env: JVM_FLAGS
+    default: "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1"
+    field_type: text
+    description: "Aikar's JVM flags for optimal GC. Safe to leave as-is."
+
+  - key: FABRIC_LOADER_VERSION
+    label: Fabric Loader Version
+    env: FABRIC_LOADER_VERSION
+    default: "0.16.9"
+    field_type: text
+    description: "Fabric loader version. Check https://fabricmc.net/develop/ for the latest stable."
+
+  - key: FORGE_VERSION
+    label: Forge Version
+    env: FORGE_VERSION
+    default: ""
+    field_type: text
+    description: "Forge version (leave blank for latest recommended). e.g. 47.3.12"
+
+  - key: NEOFORGE_VERSION
+    label: NeoForge Version
+    env: NEOFORGE_VERSION
+    default: ""
+    field_type: text
+    description: "NeoForge version (leave blank for latest). e.g. 21.4.75"
+
+  - key: QUILT_LOADER_VERSION
+    label: Quilt Loader Version
+    env: QUILT_LOADER_VERSION
+    default: "0.27.1"
+    field_type: text
+    description: "Quilt loader version. Check https://quiltmc.org/en/usage/latest-versions/ for the latest."
+
+  - key: ARCLIGHT_TYPE
+    label: Arclight Variant
+    env: ARCLIGHT_TYPE
+    default: "fabric"
+    field_type: select
+    options: "fabric, forge"
+    description: "Arclight variant: fabric (Paper + Fabric, modern MC) or forge (Paper + Forge, older MC)."
+
+  - key: MOTD
+    label: Server MOTD
+    env: MOTD
+    default: "A Vivox Minecraft Server"
+    field_type: text
+    description: "Message shown in the Minecraft server browser."
+
+  - key: MAX_PLAYERS
+    label: Max Players
+    env: MAX_PLAYERS
+    default: "20"
+    field_type: number
+
+  - key: DIFFICULTY
+    label: Difficulty
+    env: DIFFICULTY
+    default: "normal"
+    field_type: select
+    options: "peaceful, easy, normal, hard"
+
+  - key: GAMEMODE
+    label: Default Gamemode
+    env: GAMEMODE
+    default: "survival"
+    field_type: select
+    options: "survival, creative, adventure, spectator"
+
+  - key: ONLINE_MODE
+    label: Online Mode
+    env: ONLINE_MODE
+    default: "true"
+    field_type: select
+    options: "true, false"
+    description: "Set false for offline/cracked servers. Only disable if you know what you're doing."
+
+  - key: LEVEL_SEED
+    label: World Seed
+    env: LEVEL_SEED
+    default: ""
+    field_type: text
+    description: "Optional world generation seed. Leave blank for random."

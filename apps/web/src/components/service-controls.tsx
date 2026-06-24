@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Square, RotateCcw } from "lucide-react";
+import { Play, Square, RotateCcw, Download } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { toast } from "@/hooks/useToast";
 import { allowedActions, isTransient, type ServiceAction } from "@/lib/status";
@@ -21,7 +21,7 @@ const SUCCESS_MESSAGES: Record<ServiceAction, string> = {
 };
 
 export function ServiceControls({ service, onChanged }: Props) {
-  const [pending, setPending] = useState<ServiceAction | null>(null);
+  const [pending, setPending] = useState<ServiceAction | "reinstall" | null>(null);
   const allowed = allowedActions(service.status);
   const locked = isTransient(service.status);
 
@@ -38,9 +38,22 @@ export function ServiceControls({ service, onChanged }: Props) {
     }
   };
 
+  const reinstall = async () => {
+    setPending("reinstall");
+    try {
+      await servicesApi.reinstall(service.id);
+      onChanged?.({ ...service, status: "PROVISIONING" });
+      toast("Reinstall queued — watch the console for install output", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Reinstall failed", "error");
+    } finally {
+      setPending(null);
+    }
+  };
+
   return (
     <div className="flex flex-col items-end gap-1.5">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <motion.div
           animate={
             locked
@@ -75,6 +88,16 @@ export function ServiceControls({ service, onChanged }: Props) {
           onClick={() => run("restart")}
         >
           <RotateCcw className="size-3.5" /> Restart
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={locked || pending !== null}
+          loading={pending === "reinstall"}
+          onClick={() => void reinstall()}
+          title="Wipe server files and rerun the install script"
+        >
+          <Download className="size-3.5" /> Reinstall
         </Button>
         <Button
           variant="danger"

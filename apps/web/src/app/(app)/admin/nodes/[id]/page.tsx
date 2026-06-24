@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, RefreshCw, Server } from "lucide-react";
 import { nodesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
-import { useLiveNodeStatus, useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
+import { useLiveNodeStatus, useLiveServiceStatuses, mergeNodeWithLive } from "@/hooks/useLiveStatuses";
 import type { Node, Service } from "@/lib/types";
 import { NodeSetupPanel } from "@/components/NodeSetupPanel";
 import { StatusBadge } from "@/components/status-badge";
@@ -27,11 +27,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
   const svcList = services ?? [];
   const liveNode = useLiveNodeStatus(node);
   const statusMap = useLiveServiceStatuses(svcList);
-  const displayNode = node
-    ? liveNode
-      ? { ...node, status: liveNode.status, capacity: liveNode.capacity ?? node.capacity }
-      : node
-    : undefined;
+  const displayNode = node ? mergeNodeWithLive(node, liveNode) : undefined;
   const liveServices = svcList.map((s) => ({
     ...s,
     status: statusMap.get(s.id) ?? s.status,

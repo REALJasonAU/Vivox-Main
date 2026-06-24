@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nexus-control/apps/api/internal/commands"
@@ -78,6 +79,7 @@ type CreateServiceInput struct {
 // CreateService persists a new service row in PROVISIONING and writes an audit
 // event. The caller is responsible for enqueuing the asynq deploy job.
 func (m *Manager) CreateService(ctx context.Context, in CreateServiceInput) (db.Service, error) {
+	in.Config = NormalizeServiceConfig(in.Config)
 	svc, err := m.q.CreateService(ctx, db.CreateServiceParams{
 		OwnerID:        in.OwnerID,
 		Name:           in.Name,
@@ -110,7 +112,7 @@ func (m *Manager) StartService(ctx context.Context, actorID string, id pgtype.UU
 		return db.Service{}, err
 	}
 	if err := m.dispatchTracked(ctx, actorID, svc.ID, svc.NodeID, commands.KindStart, &gen.DownstreamEnvelope{
-		Action: &gen.DownstreamEnvelope_Start{Start: buildStartTask(svc)},
+		Action: &gen.DownstreamEnvelope_Start{Start: buildStartTask(svc, StartOptions{})},
 	}); err != nil {
 		return db.Service{}, err
 	}
@@ -162,7 +164,7 @@ func (m *Manager) RestartService(ctx context.Context, actorID string, id pgtype.
 		Action: &gen.DownstreamEnvelope_Stop{Stop: &gen.StopServiceTask{ServiceId: UUIDString(svc.ID), TimeoutSeconds: 30}},
 	})
 	if err := m.dispatchTracked(ctx, actorID, svc.ID, svc.NodeID, commands.KindStart, &gen.DownstreamEnvelope{
-		Action: &gen.DownstreamEnvelope_Start{Start: buildStartTask(svc)},
+		Action: &gen.DownstreamEnvelope_Start{Start: buildStartTask(svc, StartOptions{})},
 	}); err != nil {
 		return db.Service{}, err
 	}
@@ -203,10 +205,15 @@ func (m *Manager) SetStatus(ctx context.Context, actorID string, id pgtype.UUID,
 
 // DispatchStart sends a StartServiceTask for an already-persisted service
 // (used by the deploy worker after the row is created in PROVISIONING).
-func (m *Manager) DispatchStart(ctx context.Context, actorID string, svc db.Service) error {
+func (m *Manager) DispatchStart(ctx context.Context, actorID string, svc db.Service, opts StartOptions) error {
 	return m.dispatchTracked(ctx, actorID, svc.ID, svc.NodeID, commands.KindStart, &gen.DownstreamEnvelope{
-		Action: &gen.DownstreamEnvelope_Start{Start: buildStartTask(svc)},
+		Action: &gen.DownstreamEnvelope_Start{Start: buildStartTask(svc, opts)},
 	})
+}
+
+// StartOptions tweaks how a start/deploy task is built.
+type StartOptions struct {
+	ForceReinstall bool
 }
 
 // HandleCommandOutcome applies agent command acknowledgements to the status
@@ -343,20 +350,45 @@ func (m *Manager) Audit(ctx context.Context, actorID, action, targetType, target
 	m.audit(ctx, actorID, action, targetType, targetID, metadata)
 }
 
+const (
+	envVivoxCPU     = "VIVOX_CPU_SHARES"
+	envVivoxDisk    = "VIVOX_DISK_GB"
+	envVivoxStartup = "VIVOX_STARTUP_CMD"
+	envVivoxInstall = "VIVOX_INSTALL_SCRIPT"
+	envVivoxForce   = "VIVOX_FORCE_REINSTALL"
+	envVivoxInstallerImage = "VIVOX_INSTALLER_IMAGE"
+	envVivoxSkipInlineInstall = "VIVOX_SKIP_INLINE_INSTALL"
+)
+
 // buildStartTask projects a persisted service into a StartServiceTask.
-func buildStartTask(svc db.Service) *gen.StartServiceTask {
-	env := make(map[string]string, len(svc.Config.Environment)+3)
+func buildStartTask(svc db.Service, opts StartOptions) *gen.StartServiceTask {
+	env := make(map[string]string, len(svc.Config.Environment)+5)
 	for k, v := range svc.Config.Environment {
 		env[k] = v
 	}
 	if svc.ResourceLimits.CPUShares > 0 {
-		env["VIVOX_CPU_SHARES"] = strconv.FormatInt(svc.ResourceLimits.CPUShares, 10)
+		env[envVivoxCPU] = strconv.FormatInt(svc.ResourceLimits.CPUShares, 10)
 	}
 	if svc.ResourceLimits.DiskGB > 0 {
-		env["VIVOX_DISK_GB"] = strconv.FormatInt(svc.ResourceLimits.DiskGB, 10)
+		env[envVivoxDisk] = strconv.FormatInt(svc.ResourceLimits.DiskGB, 10)
+	}
+	install := svc.Config.InstallScript
+	if strings.TrimSpace(install) == "" {
+		install = DefaultInstallScript
+	}
+	env[envVivoxInstall] = install
+	if img := strings.TrimSpace(svc.Config.InstallerImage); img != "" {
+		env[envVivoxInstallerImage] = img
+		env[envVivoxSkipInlineInstall] = "1"
+	} else if strings.Contains(svc.Config.Image, "temurin") && strings.Contains(svc.Config.Image, "jre") {
+		env[envVivoxInstallerImage] = strings.Replace(svc.Config.Image, "jre", "jdk", 1)
+		env[envVivoxSkipInlineInstall] = "1"
+	}
+	if opts.ForceReinstall {
+		env[envVivoxForce] = "1"
 	}
 	if svc.Config.StartupCmd != "" {
-		env["VIVOX_STARTUP_CMD"] = svc.Config.StartupCmd
+		env[envVivoxStartup] = svc.Config.StartupCmd
 	}
 
 	task := &gen.StartServiceTask{

@@ -52,15 +52,15 @@ export function TemplateInfoDialog({
           )}
           {template.env.length > 0 && (
             <div>
-              <dt className="text-xs uppercase tracking-wider text-muted">Environment</dt>
+              <dt className="text-xs uppercase tracking-wider text-muted">Settings</dt>
               <dd className="mt-1 space-y-2">
                 {template.env.map((f) => (
                   <div key={f.key} className="rounded-lg border border-border bg-background/50 px-3 py-2">
-                    <p className="font-mono text-xs text-vivox-400">{f.key}</p>
                     <p className="text-sm text-foreground">{f.label}</p>
-                    <p className="text-xs text-muted">Default: {f.value}</p>
+                    <p className="font-mono text-xs text-vivox-400">{f.key}</p>
                     {f.description && <p className="mt-1 text-xs text-muted">{f.description}</p>}
                     {f.options && <p className="text-xs text-subtle">Options: {f.options}</p>}
+                    <p className="text-xs text-muted">Default: {f.fieldType === "password" ? "••••••" : f.value}</p>
                   </div>
                 ))}
               </dd>

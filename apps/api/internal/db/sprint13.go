@@ -150,6 +150,17 @@ func (q *Queries) ListBackupsForService(ctx context.Context, serviceID pgtype.UU
 	return items, rows.Err()
 }
 
+const countActiveBackupsForService = `
+SELECT COUNT(*)::int FROM backups
+WHERE service_id = $1 AND status IN ('pending', 'running', 'success')
+`
+
+func (q *Queries) CountActiveBackupsForService(ctx context.Context, serviceID pgtype.UUID) (int, error) {
+	var n int
+	err := q.db.QueryRow(ctx, countActiveBackupsForService, serviceID).Scan(&n)
+	return n, err
+}
+
 type UpdateBackupResultParams struct {
 	ID          pgtype.UUID
 	Status      BackupStatus

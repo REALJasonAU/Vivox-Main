@@ -2,13 +2,34 @@
 
 import { useEffect, useState } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import type { Node, Service, ServiceStatus, StatusPayload } from "@/lib/types";
+import type { Node, NodeStatus, Service, ServiceStatus, StatusPayload } from "@/lib/types";
 
 export interface NodeStatusPayload {
   status?: string;
   cpu_cores?: number;
   ram_mb?: number;
   disk_gb?: number;
+}
+
+function asNodeStatus(value: string | undefined, fallback: NodeStatus): NodeStatus {
+  if (value === "online" || value === "offline" || value === "degraded") {
+    return value;
+  }
+  return fallback;
+}
+
+export interface LiveNodeState {
+  status: NodeStatus;
+  capacity?: Node["capacity"];
+}
+
+export function mergeNodeWithLive(node: Node, live?: LiveNodeState): Node {
+  if (!live) return node;
+  return {
+    ...node,
+    status: live.status,
+    capacity: live.capacity ?? node.capacity,
+  };
 }
 
 export function useLiveServiceStatuses(services: Service[]) {
@@ -35,11 +56,6 @@ export function useLiveServiceStatuses(services: Service[]) {
   }, [services, subscribe]);
 
   return statuses;
-}
-
-export interface LiveNodeState {
-  status: string;
-  capacity?: { cpu_cores: number; ram_mb: number; disk_gb: number };
 }
 
 export function useLiveNodeStatuses(nodes: Node[]) {
@@ -77,7 +93,7 @@ export function useLiveNodeStatuses(nodes: Node[]) {
                 }
               : cur.capacity;
           next.set(n.id, {
-            status: payload.status ?? cur.status,
+            status: asNodeStatus(payload.status, cur.status),
             capacity,
           });
           return next;

@@ -188,7 +188,7 @@ func (a *api) createService(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	if err := a.enq.EnqueueDeploy(c.UserContext(), service.UUIDString(svc.ID), owner); err != nil {
+	if err := a.enq.EnqueueDeploy(c.UserContext(), service.UUIDString(svc.ID), owner, false); err != nil {
 		a.log.Warn("enqueue deploy failed", "err", err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(toServiceView(svc))
@@ -343,8 +343,11 @@ func (a *api) registerNode(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
 	}
-	if req.Name == "" || req.Region == "" {
-		return fiber.NewError(fiber.StatusBadRequest, "name and region are required")
+	if req.Name == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "name is required")
+	}
+	if req.Region == "" {
+		req.Region = "default"
 	}
 	capacity := req.Capacity
 	if capacity.CPUCores == 0 && capacity.RAMMb == 0 && capacity.DiskGb == 0 {

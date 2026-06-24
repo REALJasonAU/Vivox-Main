@@ -91,3 +91,29 @@ apply_agent_config_overrides() {
   write_agent_env "$PANEL_URL" "$NODE_ID" "$AGENT_TOKEN" "$CONTROL_ADDR"
   return 0
 }
+
+# Apply CLI credential flags even when values match (used after git pull).
+apply_credentials_from_cli() {
+  local new_panel="${1:-}"
+  local new_token="${2:-}"
+  local new_node_id="${3:-}"
+  local new_control="${4:-}"
+
+  if [[ -z "$new_panel" && -z "$new_token" && -z "$new_node_id" && -z "$new_control" ]]; then
+    return 1
+  fi
+
+  load_agent_env
+  [[ -n "$new_panel" ]] && PANEL_URL="$new_panel"
+  [[ -n "$new_token" ]] && AGENT_TOKEN="$new_token"
+  [[ -n "$new_node_id" ]] && NODE_ID="$new_node_id"
+  [[ -n "$new_control" ]] && CONTROL_ADDR="$new_control"
+
+  if [[ -z "$PANEL_URL" || -z "$NODE_ID" || -z "$AGENT_TOKEN" ]]; then
+    echo "✗ Cannot update credentials — provide --panel-url, --token, and --node-id." >&2
+    return 1
+  fi
+
+  write_agent_env "$PANEL_URL" "$NODE_ID" "$AGENT_TOKEN" "$CONTROL_ADDR"
+  return 0
+}

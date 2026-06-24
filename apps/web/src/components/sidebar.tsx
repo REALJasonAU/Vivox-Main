@@ -14,7 +14,6 @@ import {
   LayoutDashboard,
   HardDrive,
   Shield,
-  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VivoxLogo } from "./vivox-logo";
@@ -142,38 +141,6 @@ export function Sidebar({
             </Link>
           );
         })}
-        {isAdmin && !inAdminArea && (
-          <Link
-            href="/admin/dashboard"
-            title={isCollapsed ? "Admin" : undefined}
-            onClick={mobile ? onMobileClose : undefined}
-            className={cn(
-              "group relative mt-2 flex items-center rounded-xl border border-vivox-500/25 bg-vivox-500/5 text-sm font-medium text-vivox-400 transition-colors hover:bg-vivox-500/10",
-              isCollapsed ? "mx-auto size-10 justify-center" : "h-10 gap-3 px-3",
-            )}
-          >
-            <span className={NAV_ICON_BOX}>
-              <Shield className="size-[18px]" strokeWidth={2} />
-            </span>
-            {!isCollapsed && <span className="truncate">Admin panel</span>}
-          </Link>
-        )}
-        {isAdmin && inAdminArea && (
-          <Link
-            href="/dashboard"
-            title={isCollapsed ? "User panel" : undefined}
-            onClick={mobile ? onMobileClose : undefined}
-            className={cn(
-              "group relative mt-2 flex items-center rounded-xl border border-border text-sm font-medium text-muted transition-colors hover:bg-surface-raised hover:text-foreground",
-              isCollapsed ? "mx-auto size-10 justify-center" : "h-10 gap-3 px-3",
-            )}
-          >
-            <span className={NAV_ICON_BOX}>
-              <ArrowLeft className="size-[18px]" strokeWidth={2} />
-            </span>
-            {!isCollapsed && <span className="truncate">User panel</span>}
-          </Link>
-        )}
       </nav>
 
       {/* Footer: notifications, theme, user, collapse */}
@@ -186,11 +153,41 @@ export function Sidebar({
         >
           <NotifBell compact />
           <ThemeToggle compact />
+          {isAdmin && !inAdminArea && (
+            <Link
+              href="/admin/dashboard"
+              title="Admin panel"
+              onClick={mobile ? onMobileClose : undefined}
+              className="grid size-10 shrink-0 place-items-center rounded-xl text-muted transition-colors hover:bg-vivox-500/10 hover:text-vivox-500"
+            >
+              <Shield className="size-4" strokeWidth={2} />
+            </Link>
+          )}
         </div>
 
         <div className={cn("w-full", isCollapsed ? "flex justify-center" : "px-0")}>
-          <SidebarUserMenu collapsed={isCollapsed} onNavigate={mobile ? onMobileClose : undefined} />
+          <SidebarUserMenu
+            collapsed={isCollapsed}
+            isAdmin={isAdmin}
+            inAdminArea={inAdminArea}
+            onNavigate={mobile ? onMobileClose : undefined}
+          />
         </div>
+
+        {isAdmin && inAdminArea && (
+          <Link
+            href="/dashboard"
+            onClick={mobile ? onMobileClose : undefined}
+            className={cn(
+              "w-full rounded-lg border-t border-border/50 text-muted transition-colors hover:bg-surface-raised hover:text-foreground",
+              isCollapsed
+                ? "mt-0.5 px-1 py-2 text-center text-[10px] font-medium leading-tight"
+                : "mt-0.5 px-2.5 py-2 text-sm font-medium",
+            )}
+          >
+            {isCollapsed ? "User panel" : "← User panel"}
+          </Link>
+        )}
 
         {!mobile && (
           <button

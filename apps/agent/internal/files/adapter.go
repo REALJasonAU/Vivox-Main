@@ -25,3 +25,8 @@ func (a *ClientAdapter) ReadFile(ctx context.Context, t *gen.FileReadTask) ([]by
 func (a *ClientAdapter) WriteFile(ctx context.Context, t *gen.FileWriteTask) error {
 	return a.Handler.WriteFile(ctx, t.GetServiceId(), t.GetPath(), t.GetContent())
 }
+
+// DeleteFile implements client.FileHandler.
+func (a *ClientAdapter) DeleteFile(ctx context.Context, t *gen.FileDeleteTask) error {
+	return a.Handler.DeleteFile(ctx, t.GetServiceId(), t.GetPath())
+}

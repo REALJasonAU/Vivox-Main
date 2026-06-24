@@ -69,7 +69,16 @@ func (h *Handler) ReadFile(ctx context.Context, serviceID, path string) ([]byte,
 }
 
 // WriteFile writes content to a path inside the container.
+// Creates parent directories if they don't exist.
 func (h *Handler) WriteFile(ctx context.Context, serviceID, path string, content []byte) error {
+	dir := path[:strings.LastIndex(path, "/")]
+	if dir == "" {
+		dir = "/"
+	}
+	if _, err := h.exec(ctx, serviceID, "sh", "-c", fmt.Sprintf("mkdir -p %s", shellQuote(dir))); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+
 	id, err := h.findContainer(ctx, serviceID)
 	if err != nil {
 		return err
@@ -104,6 +113,12 @@ func (h *Handler) WriteFile(ctx context.Context, serviceID, path string, content
 		return fmt.Errorf("write failed with exit code %d", inspect.ExitCode)
 	}
 	return nil
+}
+
+// DeleteFile removes a file inside the service container via docker exec.
+func (h *Handler) DeleteFile(ctx context.Context, serviceID, path string) error {
+	_, err := h.exec(ctx, serviceID, "rm", "-f", "--", path)
+	return err
 }
 
 func (h *Handler) exec(ctx context.Context, serviceID string, cmd ...string) ([]byte, error) {

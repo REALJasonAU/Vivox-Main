@@ -42,6 +42,10 @@ func toFileEntryViews(entries []*gen.FileEntry) []fileEntryView {
 }
 
 func (a *api) dispatchFileCommand(svc db.Service, env *gen.DownstreamEnvelope) (filestrack.Result, error) {
+	return a.dispatchFileCommandWithTimeout(svc, env, 10*time.Second)
+}
+
+func (a *api) dispatchFileCommandWithTimeout(svc db.Service, env *gen.DownstreamEnvelope, timeout time.Duration) (filestrack.Result, error) {
 	if !svc.NodeID.Valid {
 		return filestrack.Result{}, fiber.NewError(fiber.StatusConflict, "service not assigned to a node")
 	}
@@ -56,7 +60,7 @@ func (a *api) dispatchFileCommand(svc db.Service, env *gen.DownstreamEnvelope) (
 		a.fileTracker.Cancel(commandID)
 		return filestrack.Result{}, err
 	}
-	result, ok := filestrack.Wait(ch, 10*time.Second)
+	result, ok := filestrack.Wait(ch, timeout)
 	if !ok {
 		a.fileTracker.Cancel(commandID)
 		return filestrack.Result{}, fiber.NewError(fiber.StatusGatewayTimeout, "agent timeout")
