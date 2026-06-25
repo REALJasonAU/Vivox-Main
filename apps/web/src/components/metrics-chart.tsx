@@ -244,7 +244,7 @@ export function MetricsChart({
             data={points}
             dataKey="net"
             color="56 189 248"
-            formatTooltip={(v) => [bytesPerSecLabel(v), "Throughput"]}
+            formatTooltip={(v) => bytesPerSecLabel(v)}
           />
         </Panel>
         <Panel icon={<HardDrive className="size-4" />} title="Storage" value={diskDisplay}>

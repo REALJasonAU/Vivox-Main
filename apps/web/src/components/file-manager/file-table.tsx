@@ -203,7 +203,7 @@ export function FileTable({
                     {entry.is_dir ? "—" : formatBytes(entry.size ?? 0)}
                   </td>
                   <td className="hidden px-3 py-2 text-right text-muted md:table-cell">
-                    {entry.modified_at ? formatRelativeTime(entry.modified_at) : "—"}
+                    {entry.modified ? formatRelativeTime(entry.modified) : "—"}
                   </td>
                 </tr>
               );

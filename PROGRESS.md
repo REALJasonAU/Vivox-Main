@@ -64,11 +64,25 @@
 ### Service page tab switching
 - All tab panels mount persistently via `hidden` class
 
+## Completed (2026-06-25 — prod Docker web build fix)
+
+### `allocations.ts` restore
+- Re-added backup/database exports lost when CPU/memory formatters were added: `BACKUP_STORAGE_OPTIONS`, `DATABASE_TYPE_OPTIONS`, `backupStorageLabel`, `hasBackupAllocation`, `activeBackupCount`, `DEFAULT_BACKUP_DIR`
+- Kept existing `formatCpuLimit`, `cpuSharesToThreads`, etc.
+
+### TypeScript build fixes
+- `file-table.tsx`: `modified_at` → `modified` (matches `FileEntry` type)
+- `metrics-chart.tsx`: network tooltip returns string, not array
+
+### Verified
+- `npm run build` in `apps/web` passes locally
+
 ## Current task
 
-None — node agent updater verified.
+None — prod web Docker build unblocked pending push + CT106 rebuild.
 
 ## Next actions
 
+- Push to GitHub main, then on CT106: `git pull && DOCKER_BUILDKIT=1 bash infra/scripts/update.sh --rebuild`
 - Optional: persist backup display names in DB (`backups.name` column)
 - Optional: directory move support in file manager drag-drop
