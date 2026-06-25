@@ -2,7 +2,9 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm npm ci || npm install
+# npm ci requires a lockfile; skip straight to install when it is missing.
+RUN --mount=type=cache,target=/root/.npm \
+  if [ -f package-lock.json ]; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
 
 FROM node:22-alpine AS builder
 WORKDIR /app
