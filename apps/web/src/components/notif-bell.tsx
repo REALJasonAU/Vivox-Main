@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell } from "lucide-react";
 import {
   isAlertNotif,
+  loadNotifications,
   markAllRead,
   notifEmoji,
   notifLabel,
@@ -20,13 +21,14 @@ const DROPDOWN_MAX = 10;
 export function NotifBell({ compact = false }: { compact?: boolean }) {
   const notifs = useNotifications();
   const [open, setOpen] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const unread = notifs.filter((n) => !n.read).length;
-  const prevCount = useRef(notifs.length);
 
   useEffect(() => {
-    prevCount.current = notifs.length;
-  }, [notifs.length]);
+    if (!open) return;
+    void loadNotifications();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,8 +85,12 @@ export function NotifBell({ compact = false }: { compact?: boolean }) {
               {notifs.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => markAllRead()}
-                  className="text-xs text-vivox-400 hover:underline"
+                  disabled={markingRead}
+                  onClick={() => {
+                    setMarkingRead(true);
+                    void markAllRead().finally(() => setMarkingRead(false));
+                  }}
+                  className="text-xs text-vivox-400 hover:underline disabled:opacity-50"
                 >
                   Mark all read
                 </button>

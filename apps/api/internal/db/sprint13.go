@@ -128,7 +128,7 @@ func (q *Queries) CreateBackup(ctx context.Context, arg CreateBackupParams) (Bac
 
 const listBackupsForService = `
 SELECT id, service_id, node_id, status, size_bytes, error, created_at, completed_at
-FROM backups WHERE service_id = $1 ORDER BY created_at DESC
+FROM backups WHERE service_id = $1 AND dismissed = false ORDER BY created_at DESC
 `
 
 func (q *Queries) ListBackupsForService(ctx context.Context, serviceID pgtype.UUID) ([]Backup, error) {
@@ -186,6 +186,14 @@ const deleteBackup = `DELETE FROM backups WHERE id = $1 AND service_id = $2`
 
 func (q *Queries) DeleteBackup(ctx context.Context, id, serviceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteBackup, id, serviceID)
+	return err
+}
+
+func (q *Queries) DismissBackup(ctx context.Context, backupID, serviceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx,
+		`UPDATE backups SET dismissed=true WHERE id=$1 AND service_id=$2`,
+		backupID, serviceID,
+	)
 	return err
 }
 

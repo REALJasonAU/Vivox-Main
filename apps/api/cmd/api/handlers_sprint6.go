@@ -45,6 +45,36 @@ func toFileEntryViews(entries []*gen.FileEntry) []fileEntryView {
 
 const serviceDataRoot = "/mnt/server"
 
+func fileNotRunningMessage() string {
+	return "server is not running — start it to use the file manager"
+}
+
+func isContainerNotRunningErr(msg string) bool {
+	return strings.Contains(msg, "not running") || strings.Contains(msg, "container is not running")
+}
+
+func fileCommandHTTPError(result filestrack.Result, err error) error {
+	if err != nil {
+		if isContainerNotRunningErr(err.Error()) {
+			return fiber.NewError(fiber.StatusServiceUnavailable, fileNotRunningMessage())
+		}
+		return err
+	}
+	if result.Error != "" {
+		if isContainerNotRunningErr(result.Error) {
+			return fiber.NewError(fiber.StatusServiceUnavailable, fileNotRunningMessage())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, result.Error)
+	}
+	if result.CommandResponse && !result.Success {
+		if isContainerNotRunningErr(result.Error) {
+			return fiber.NewError(fiber.StatusServiceUnavailable, fileNotRunningMessage())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, result.Error)
+	}
+	return nil
+}
+
 func validateServiceFilePath(path string) (string, error) {
 	if path == "" {
 		return "", fiber.NewError(fiber.StatusBadRequest, "path is required")
@@ -80,8 +110,8 @@ func (a *api) dispatchFileCommandWithTimeout(svc db.Service, env *gen.Downstream
 		a.fileTracker.Cancel(commandID)
 		return filestrack.Result{}, fiber.NewError(fiber.StatusGatewayTimeout, "agent timeout")
 	}
-	if result.CommandResponse && !result.Success {
-		return result, fiber.NewError(fiber.StatusInternalServerError, result.Error)
+	if err := fileCommandHTTPError(result, nil); err != nil {
+		return result, err
 	}
 	return result, nil
 }
@@ -108,6 +138,9 @@ func (a *api) listFiles(c *fiber.Ctx) error {
 		return err
 	}
 	if result.Error != "" {
+		if isContainerNotRunningErr(result.Error) {
+			return fiber.NewError(fiber.StatusServiceUnavailable, fileNotRunningMessage())
+		}
 		return fiber.NewError(fiber.StatusInternalServerError, result.Error)
 	}
 	return c.JSON(toFileEntryViews(result.Entries))

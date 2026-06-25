@@ -3,6 +3,7 @@ package files
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -23,6 +24,9 @@ const (
 	maxReadBytes   = 1 << 20 // 1 MiB
 	serverDataRoot = "/mnt/server"
 )
+
+// ErrContainerNotRunning is returned when file ops require a running container.
+var ErrContainerNotRunning = errors.New("container is not running")
 
 // Handler performs file operations inside a service container via docker exec.
 type Handler struct {
@@ -90,12 +94,13 @@ func (h *Handler) WriteFile(ctx context.Context, serviceID, path string, content
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	id, err := h.findContainer(ctx, serviceID)
+	if _, err := h.exec(ctx, serviceID, "sh", "-c", fmt.Sprintf("mkdir -p %s", shellQuote(dir))); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+
+	id, err := h.ensureRunning(ctx, serviceID)
 	if err != nil {
 		return err
-	}
-	if id == "" {
-		return fmt.Errorf("no container found for service %s", serviceID)
 	}
 	execCfg := container.ExecOptions{
 		Cmd:          []string{"sh", "-c", "cat > " + shellQuote(safe)},
@@ -148,12 +153,9 @@ func validateServicePath(path string) (string, error) {
 }
 
 func (h *Handler) exec(ctx context.Context, serviceID string, cmd ...string) ([]byte, error) {
-	id, err := h.findContainer(ctx, serviceID)
+	id, err := h.ensureRunning(ctx, serviceID)
 	if err != nil {
 		return nil, err
-	}
-	if id == "" {
-		return nil, fmt.Errorf("no container found for service %s", serviceID)
 	}
 	execCfg := container.ExecOptions{
 		Cmd:          cmd,
@@ -196,6 +198,21 @@ func (h *Handler) findContainer(ctx context.Context, serviceID string) (string, 
 		return "", nil
 	}
 	return list[0].ID, nil
+}
+
+func (h *Handler) ensureRunning(ctx context.Context, serviceID string) (string, error) {
+	id, err := h.findContainer(ctx, serviceID)
+	if err != nil {
+		return "", err
+	}
+	if id == "" {
+		return "", fmt.Errorf("no container found for service %s", serviceID)
+	}
+	info, err := h.cli.ContainerInspect(ctx, id)
+	if err == nil && !info.State.Running {
+		return "", ErrContainerNotRunning
+	}
+	return id, nil
 }
 
 // parseLsOutput parses `ls -la --time-style=+%s` lines into FileEntry slices.

@@ -218,6 +218,8 @@ export const servicesApi = {
     apiFetch<Backup>(`/services/${id}/backups`, { method: "POST" }),
   deleteBackup: (id: string, backupId: string) =>
     apiFetch<void>(`/services/${id}/backups/${backupId}`, { method: "DELETE", raw: true }),
+  dismissBackup: (serviceId: string, backupId: string) =>
+    apiFetch<void>(`/services/${serviceId}/backups/${backupId}/dismiss`, { method: "POST", raw: true }),
   listDomains: (id: string) => apiFetch<ServiceDomain[]>(`/services/${id}/domains`),
   addDomain: (id: string, domain: string) =>
     apiFetch<ServiceDomain>(`/services/${id}/domains`, { method: "POST", body: { domain } }),

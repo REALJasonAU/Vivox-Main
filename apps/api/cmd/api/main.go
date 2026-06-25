@@ -255,6 +255,7 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 	apiGroup.Get("/services/:id/backups", a.listBackups)
 	apiGroup.Post("/services/:id/backups", a.createBackup)
 	apiGroup.Delete("/services/:id/backups/:backupId", a.deleteBackup)
+	apiGroup.Post("/services/:id/backups/:backupId/dismiss", a.dismissBackup)
 
 	apiGroup.Get("/services/:id/domains", a.listServiceDomains)
 	apiGroup.Post("/services/:id/domains", a.addServiceDomain)
@@ -269,6 +270,9 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 	apiGroup.Post("/user/api-keys", a.createApiKey)
 	apiGroup.Delete("/user/api-keys/:id", a.deleteApiKey)
 	apiGroup.Patch("/user/profile", a.updateProfile)
+
+	apiGroup.Get("/notifications", a.listNotifications)
+	apiGroup.Post("/notifications/read-all", a.markAllNotificationsRead)
 
 	admin := apiGroup.Group("/admin", auth.RequireRole(auth.RoleAdmin))
 	admin.Post("/nodes", a.registerNode)

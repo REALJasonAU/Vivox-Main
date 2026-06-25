@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Trash2, X } from "lucide-react";
 import { servicesApi } from "@/lib/api";
@@ -32,7 +32,6 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
   const [connecting, setConnecting] = useState(false);
   const [failureMsg, setFailureMsg] = useState<string | null>(null);
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
-  const [dismissedFailed, setDismissedFailed] = useState<Set<string>>(() => new Set());
   const notifiedFailedRef = useRef<Set<string>>(new Set());
 
   const list = backups ?? [];
@@ -48,11 +47,6 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
       });
     }
   }, [list, serviceId, displayNames]);
-
-  const visibleBackups = useMemo(
-    () => list.filter((b) => b.status !== "failed" || !dismissedFailed.has(b.id)),
-    [list, dismissedFailed],
-  );
 
   const createBackup = async (name: string) => {
     setConnecting(true);
@@ -75,6 +69,15 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
       toast("Backup deleted", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "Delete failed", "error");
+    }
+  };
+
+  const dismissBackup = async (backupId: string) => {
+    try {
+      await servicesApi.dismissBackup(serviceId, backupId);
+      void refetch();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to dismiss", "error");
     }
   };
 
@@ -143,13 +146,13 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
         <Skeleton className="h-24" />
       ) : (
         <div className="flex flex-col gap-2">
-          {visibleBackups.length === 0 ? (
+          {list.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted">
               No backups yet
             </div>
           ) : (
             <AnimatePresence>
-              {visibleBackups.map((b) => (
+              {list.map((b) => (
                 <motion.div
                   key={b.id}
                   initial={{ opacity: 0, y: 8 }}
@@ -183,9 +186,7 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
                   {b.status === "failed" && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setDismissedFailed((prev) => new Set(prev).add(b.id))
-                      }
+                      onClick={() => void dismissBackup(b.id)}
                       className="rounded p-1 text-muted hover:bg-surface-raised hover:text-foreground"
                       aria-label="Dismiss failed backup"
                     >

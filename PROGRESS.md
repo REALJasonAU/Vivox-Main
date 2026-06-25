@@ -79,7 +79,17 @@
 
 ## Current task
 
-None — prod web Docker build unblocked pending push + CT106 rebuild.
+None — All-Fixes Sprint complete (pending push + prod deploy).
+
+## Completed (2026-06-25 — All-Fixes Sprint)
+
+- Backup agent: `alpine:3` + ImagePull (replaces busybox)
+- Notifications persisted to DB (`013_notifications.sql`) + API list/mark-read; notify service writes on status events
+- Backup dismiss persisted (`014_backup_dismissed.sql`) + API + frontend
+- File manager: container-not-running → 503 + friendly UI
+- Game icons: Rust gear + Minecraft grass block SVGs
+- Tab switching: `history.pushState` (no RSC remount)
+- Metrics: status-aware empty state + node-offline banner
 
 ## Next actions
 

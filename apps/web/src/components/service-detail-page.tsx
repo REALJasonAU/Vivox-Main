@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Globe, X, Download } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import { useTopic } from "@/hooks/useWebSocket";
-import type { Service, ServiceDomain, StatusPayload } from "@/lib/types";
+import type { Service, ServiceDomain, ServiceStatus, StatusPayload } from "@/lib/types";
 import { STATUS_META, isTransient } from "@/lib/status";
 import { portsForDisplay } from "@/lib/ports";
 import { PortDisplayList } from "@/components/port-display-list";
@@ -60,7 +60,6 @@ export function ServiceDetailPage({
   segments?: string[];
 }) {
   const router = useRouter();
-  const pathname = usePathname();
   const { setContextServiceId } = useCommandPalette();
   const { data, loading, error, refetch } = useApi<Service>(
     () => servicesApi.get(serviceId),
@@ -77,23 +76,26 @@ export function ServiceDetailPage({
     [service],
   );
 
-  const route = useMemo(() => parseServiceRoute(segments, tabs), [segments, tabs]);
-  const tab = route.tab;
-  const pluginTab = service ? pluginTabLabel(service) : null;
-
-  const fileDirRel = useMemo(() => {
-    if (tab !== "Files" || !route.fileRelPath) return undefined;
+  const [tab, setTab] = useState<string>(() => {
+    const route = parseServiceRoute(segments, tabs);
+    return route.tab;
+  });
+  const [fileDirRel, setFileDirRel] = useState<string | undefined>(() => {
+    const route = parseServiceRoute(segments, tabs);
+    if (route.tab !== "Files" || !route.fileRelPath) return undefined;
     if (route.selectedFileRel) {
       const parts = route.selectedFileRel.split("/");
       parts.pop();
       return parts.join("/");
     }
     return route.fileRelPath;
-  }, [tab, route.fileRelPath, route.selectedFileRel]);
+  });
+  const [selectedFileAbs, setSelectedFileAbs] = useState<string | undefined>(() => {
+    const route = parseServiceRoute(segments, tabs);
+    return route.selectedFileRel ? fileRelToAbsolute(route.selectedFileRel) : undefined;
+  });
 
-  const selectedFileAbs = route.selectedFileRel
-    ? fileRelToAbsolute(route.selectedFileRel)
-    : undefined;
+  const pluginTab = service ? pluginTabLabel(service) : null;
 
   useEffect(() => {
     if (data) setService(data);
@@ -118,24 +120,61 @@ export function ServiceDetailPage({
     }
   });
 
-  const navigateTab = (nextTab: string) => {
-    router.push(buildServicePath(serviceId, nextTab));
-  };
+  const navigateTab = useCallback(
+    (nextTab: string) => {
+      const path = buildServicePath(serviceId, nextTab);
+      window.history.pushState(null, "", path);
+      setTab(nextTab);
+      if (nextTab !== "Files") {
+        setFileDirRel(undefined);
+        setSelectedFileAbs(undefined);
+      }
+    },
+    [serviceId],
+  );
 
   const navigateFiles = useCallback(
     (absPath: string) => {
       const rel = absoluteToFileRel(absPath);
       const isFile = rel.split("/").pop()?.includes(".") ?? false;
+      const dirRel = isFile ? rel.split("/").slice(0, -1).join("/") : rel;
       const nextPath = buildServicePath(serviceId, "Files", {
         selectedFileRel: isFile ? rel : undefined,
-        fileDirRel: isFile ? rel.split("/").slice(0, -1).join("/") : rel,
+        fileDirRel: dirRel,
       });
-      if (pathname !== nextPath) {
-        router.push(nextPath);
-      }
+      window.history.pushState(null, "", nextPath);
+      setTab("Files");
+      setFileDirRel(dirRel);
+      setSelectedFileAbs(isFile ? absPath : undefined);
     },
-    [serviceId, router, pathname],
+    [serviceId],
   );
+
+  useEffect(() => {
+    const onPopState = () => {
+      const path = window.location.pathname;
+      const match = path.match(/^\/services\/[^/]+\/(.*)/);
+      const segs = match?.[1] ? match[1].split("/").filter(Boolean) : [];
+      const route = parseServiceRoute(segs.length ? segs : undefined, tabs);
+      setTab(route.tab);
+      if (route.tab === "Files") {
+        if (route.selectedFileRel) {
+          const parts = route.selectedFileRel.split("/");
+          parts.pop();
+          setFileDirRel(parts.join("/"));
+          setSelectedFileAbs(fileRelToAbsolute(route.selectedFileRel));
+        } else {
+          setFileDirRel(route.fileRelPath);
+          setSelectedFileAbs(undefined);
+        }
+      } else {
+        setFileDirRel(undefined);
+        setSelectedFileAbs(undefined);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [tabs]);
 
   if (loading && !service) {
     return (
@@ -287,10 +326,12 @@ function OverviewTab({ service }: { service: Service }) {
   return (
     <div className="flex flex-col gap-4">
       <HealthIndicator serviceId={service.id} />
+      <NodeOfflineBanner nodeId={service.node_id} />
       <MetricsChart
         serviceId={service.id}
         memoryLimitMb={service.resource_limits.memory_mb}
         diskLimitGb={service.resource_limits.disk_gb}
+        initialStatus={service.status}
       />
       <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-border bg-surface sm:grid-cols-3">
         <Fact label="Memory limit" value={formatMemoryLimit(service.resource_limits.memory_mb)} />
@@ -301,6 +342,27 @@ function OverviewTab({ service }: { service: Service }) {
         />
       </div>
       {portItems.length > 0 && <PortsOverview ports={portItems} />}
+    </div>
+  );
+}
+
+function NodeOfflineBanner({ nodeId }: { nodeId: string | null }) {
+  const [online, setOnline] = useState(true);
+
+  useTopic<{ status?: string }>(
+    nodeId ? `node:${nodeId}:status` : null,
+    (payload) => {
+      if (payload?.status) {
+        setOnline(payload.status === "online");
+      }
+    },
+  );
+
+  if (!nodeId || online) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+      The node agent is offline — metrics and controls may not work until it reconnects.
     </div>
   );
 }

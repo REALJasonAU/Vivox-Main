@@ -3,16 +3,19 @@ package backup
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
 const (
-	BackupDir        = "/var/lib/vivox/backups"
+	BackupDir      = "/var/lib/vivox/backups"
+	backupImage    = "alpine:3"
 	labelManagedBy   = "managed-by"
 	labelService     = "nexus.service_id"
 	managedByValue   = "nexus-agent"
@@ -41,8 +44,14 @@ func Run(ctx context.Context, docker *client.Client, serviceID, backupID string)
 
 	archivePath := filepath.Join(BackupDir, backupID+".tar.gz")
 
+	pullReader, pullErr := docker.ImagePull(ctx, backupImage, image.PullOptions{})
+	if pullErr == nil {
+		_, _ = io.Copy(io.Discard, pullReader)
+		pullReader.Close()
+	}
+
 	resp, err := docker.ContainerCreate(ctx, &container.Config{
-		Image: "busybox",
+		Image: backupImage,
 		Cmd:   []string{"tar", "czf", "/backup/" + backupID + ".tar.gz", "-C", "/data", "."},
 	}, &container.HostConfig{
 		VolumesFrom: []string{containerID},

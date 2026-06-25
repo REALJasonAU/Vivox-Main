@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/useToast";
-import { filesApi } from "@/lib/api";
+import { filesApi, ApiError } from "@/lib/api";
 import type { Service } from "@/lib/types";
 import {
   parseServerProperties,
@@ -71,8 +71,14 @@ export function ServerPropertiesEditor({ service }: Props) {
       setEntries(parseServerProperties(decoded));
       setRawContent(decoded);
       setDirty(false);
-    } catch {
-      toast("Could not load server.properties — start the server or check Files tab", "error");
+    } catch (e) {
+      const msg =
+        e instanceof ApiError && e.status === 503
+          ? "Could not load server.properties — start the server or check Files tab"
+          : e instanceof Error && e.message.toLowerCase().includes("not running")
+            ? "Could not load server.properties — start the server or check Files tab"
+            : "Could not load server.properties — start the server or check Files tab";
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }

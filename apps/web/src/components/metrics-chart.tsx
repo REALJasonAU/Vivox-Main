@@ -13,7 +13,7 @@ import {
 import { Cpu, HardDrive, MemoryStick, Network } from "lucide-react";
 import { useTopic } from "@/hooks/useWebSocket";
 import { servicesApi } from "@/lib/api";
-import type { MetricsPayload } from "@/lib/types";
+import type { MetricsPayload, ServiceStatus, StatusPayload } from "@/lib/types";
 import { cn, formatBytes } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/states";
 
@@ -85,15 +85,26 @@ export function MetricsChart({
   serviceId,
   memoryLimitMb,
   diskLimitGb,
+  initialStatus,
 }: {
   serviceId: string;
   memoryLimitMb?: number;
   diskLimitGb?: number;
+  initialStatus?: ServiceStatus;
 }) {
   const [range, setRange] = useState<Range>("live");
   const [livePoints, setLivePoints] = useState<Point[]>([]);
   const [histPoints, setHistPoints] = useState<Point[]>([]);
   const [histLoading, setHistLoading] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<ServiceStatus | undefined>(initialStatus);
+
+  useTopic<StatusPayload>(`service:${serviceId}:status`, (payload) => {
+    if (payload?.status) setLiveStatus(payload.status);
+  });
+
+  useEffect(() => {
+    if (initialStatus) setLiveStatus(initialStatus);
+  }, [initialStatus]);
 
   const memLimitBytes = useMemo(
     () => (memoryLimitMb && memoryLimitMb > 0 ? memoryLimitMb * 1024 * 1024 : 0),
@@ -181,6 +192,8 @@ export function MetricsChart({
     : "—";
 
   const netDisplay = latest ? bytesPerSecLabel(latest.netRate) : "—";
+  const isRunning = liveStatus === "RUNNING";
+  const emptyChartMessage = isRunning ? "Waiting for metrics…" : "Start the server to see metrics.";
 
   return (
     <div className="flex flex-col gap-4">
@@ -223,7 +236,7 @@ export function MetricsChart({
           </div>
         )}
         <Panel icon={<Cpu className="size-4" />} title="CPU" value={latest ? `${latest.cpu}%` : "—"}>
-          <Chart data={points} dataKey="cpu" color="229 24 27" unit="%" domain={[0, 100]} />
+          <Chart data={points} dataKey="cpu" color="229 24 27" unit="%" domain={[0, 100]} emptyMessage={emptyChartMessage} />
         </Panel>
         <Panel icon={<MemoryStick className="size-4" />} title="Memory" value={memDisplay}>
           <Chart
@@ -232,6 +245,7 @@ export function MetricsChart({
             color="16 185 129"
             unit={memAsPercent ? "%" : undefined}
             domain={memAsPercent ? [0, 100] : undefined}
+            emptyMessage={emptyChartMessage}
             formatTooltip={(v, point) =>
               memAsPercent
                 ? `${v}% (${formatBytes(point.memBytes)})`
@@ -244,6 +258,7 @@ export function MetricsChart({
             data={points}
             dataKey="net"
             color="56 189 248"
+            emptyMessage={emptyChartMessage}
             formatTooltip={(v) => bytesPerSecLabel(v)}
           />
         </Panel>
@@ -254,6 +269,7 @@ export function MetricsChart({
             color="168 85 247"
             unit={diskAsPercent ? "%" : undefined}
             domain={diskAsPercent ? [0, 100] : undefined}
+            emptyMessage={emptyChartMessage}
             formatTooltip={(v, point) =>
               diskAsPercent
                 ? `${v}% (${formatBytes(point.diskBytes)})`
@@ -300,6 +316,7 @@ function Chart({
   unit,
   domain,
   formatTooltip,
+  emptyMessage = "Waiting for metrics…",
 }: {
   data: Point[];
   dataKey: ChartKey;
@@ -307,11 +324,12 @@ function Chart({
   unit?: string;
   domain?: [number, number];
   formatTooltip?: (value: number, point: Point) => string;
+  emptyMessage?: string;
 }) {
   if (data.length === 0) {
     return (
-      <div className="grid h-full place-items-center text-xs text-muted">
-        Waiting for metrics…
+      <div className="grid h-full place-items-center px-3 text-center text-xs text-muted">
+        {emptyMessage}
       </div>
     );
   }

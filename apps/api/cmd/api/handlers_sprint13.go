@@ -180,6 +180,21 @@ func (a *api) deleteBackup(c *fiber.Ctx) error {
 	return c.SendStatus(204)
 }
 
+func (a *api) dismissBackup(c *fiber.Ctx) error {
+	svc, err := a.loadOwned(c)
+	if err != nil {
+		return err
+	}
+	backupID, err := service.ParseUUID(c.Params("backupId"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid backup id")
+	}
+	if err := a.q.DismissBackup(c.UserContext(), backupID, svc.ID); err != nil {
+		return err
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func backupView(b db.Backup) fiber.Map {
 	var size *int64
 	if b.SizeBytes.Valid {

@@ -47,6 +47,24 @@ import {
   sortEntries,
 } from "@/components/file-manager/utils";
 
+function isServerNotRunningError(error: string | null): boolean {
+  if (!error) return false;
+  const lower = error.toLowerCase();
+  return lower.includes("not running") || lower.includes("server is not running");
+}
+
+function FileListError({ error }: { error: string }) {
+  if (isServerNotRunningError(error)) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface py-12 text-center">
+        <p className="text-sm font-medium text-foreground">Server is not running</p>
+        <p className="text-xs text-muted">Start the server to use the file manager.</p>
+      </div>
+    );
+  }
+  return <ErrorBanner message={error} />;
+}
+
 function ModePill({
   active,
   onClick,
@@ -669,7 +687,7 @@ export function FileManager({
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {error && (
                 <div className="p-3">
-                  <ErrorBanner message={error} />
+                  <FileListError error={error} />
                 </div>
               )}
               <FileTable
@@ -694,7 +712,7 @@ export function FileManager({
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {error && (
               <div className="p-3">
-                <ErrorBanner message={error} />
+                <FileListError error={error} />
               </div>
             )}
             <FileTable
