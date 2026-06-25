@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Play, Square, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Play, Square, RotateCcw, Skull } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { toast } from "@/hooks/useToast";
 import { allowedActions, isTransient, type ServiceAction } from "@/lib/status";
@@ -14,15 +14,40 @@ interface Props {
 }
 
 const SUCCESS_MESSAGES: Record<ServiceAction, string> = {
-  start: "Service started",
-  stop: "Service stopped",
-  restart: "Service restarted",
+  start: "Server started",
+  stop: "Server stopped",
+  restart: "Server restarted",
 };
 
+const KILL_AFTER_MS = 20_000;
+
 export function ServiceControls({ service, onChanged }: Props) {
-  const [pending, setPending] = useState<ServiceAction | null>(null);
+  const [pending, setPending] = useState<ServiceAction | "kill" | null>(null);
+  const [showKill, setShowKill] = useState(false);
+  const stoppingSince = useRef<number | null>(null);
   const allowed = allowedActions(service.status);
   const locked = isTransient(service.status);
+  const isStopping = service.status === "STOPPING";
+
+  useEffect(() => {
+    if (service.status === "STOPPING") {
+      if (stoppingSince.current === null) stoppingSince.current = Date.now();
+    } else {
+      stoppingSince.current = null;
+      setShowKill(false);
+    }
+  }, [service.status]);
+
+  useEffect(() => {
+    if (!isStopping || stoppingSince.current === null) return;
+    const elapsed = Date.now() - stoppingSince.current;
+    if (elapsed >= KILL_AFTER_MS) {
+      setShowKill(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowKill(true), KILL_AFTER_MS - elapsed);
+    return () => window.clearTimeout(timer);
+  }, [isStopping, service.id]);
 
   const run = async (action: ServiceAction) => {
     setPending(action);
@@ -32,6 +57,19 @@ export function ServiceControls({ service, onChanged }: Props) {
       toast(SUCCESS_MESSAGES[action], "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Action failed", "error");
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const forceKill = async () => {
+    setPending("kill");
+    try {
+      const updated = await servicesApi.forceStop(service.id);
+      onChanged?.(updated);
+      toast("Force stop sent", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Force stop failed", "error");
     } finally {
       setPending(null);
     }
@@ -47,7 +85,7 @@ export function ServiceControls({ service, onChanged }: Props) {
           disabled={!allowed.start || locked || pending !== null}
           loading={pending === "start"}
           onClick={() => run("start")}
-          className={locked ? "opacity-80" : undefined}
+          className={locked && !isStopping ? "opacity-80" : undefined}
         >
           <Play className="size-3.5" /> Start
         </Button>
@@ -61,19 +99,35 @@ export function ServiceControls({ service, onChanged }: Props) {
         >
           <RotateCcw className="size-3.5" /> Restart
         </Button>
-        <Button
-          variant="danger"
-          size="sm"
-          actionType="stop"
-          disabled={!allowed.stop || locked || pending !== null}
-          loading={pending === "stop"}
-          onClick={() => run("stop")}
-        >
-          <Square className="size-3.5" /> Stop
-        </Button>
+        {!isStopping && (
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={!allowed.stop || locked || pending !== null}
+            loading={pending === "stop"}
+            onClick={() => run("stop")}
+          >
+            <Square className="size-3.5" /> Stop
+          </Button>
+        )}
+        {isStopping && showKill && (
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={pending !== null}
+            loading={pending === "kill"}
+            onClick={() => void forceKill()}
+          >
+            <Skull className="size-3.5" /> Kill
+          </Button>
+        )}
       </div>
       {locked && (
-        <span className="text-[11px] text-subtle">Controls locked during transition…</span>
+        <span className="text-[11px] text-subtle">
+          {isStopping && !showKill
+            ? "Graceful shutdown in progress…"
+            : "Controls locked during transition…"}
+        </span>
       )}
     </div>
   );

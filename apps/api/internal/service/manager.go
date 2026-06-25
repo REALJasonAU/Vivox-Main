@@ -140,6 +140,36 @@ func (m *Manager) StopService(ctx context.Context, actorID string, id pgtype.UUI
 	return m.transition(ctx, actorID, svc, db.ServiceStatusSTOPPING, "service.stop")
 }
 
+// ForceStopService sends SIGKILL (timeout 0) to the container. Allowed from
+// RUNNING, STARTING, or STOPPING when graceful shutdown is taking too long.
+func (m *Manager) ForceStopService(ctx context.Context, actorID string, id pgtype.UUID) (db.Service, error) {
+	svc, err := m.q.GetService(ctx, id)
+	if err != nil {
+		return db.Service{}, err
+	}
+	switch svc.Status {
+	case db.ServiceStatusRUNNING, db.ServiceStatusSTARTING, db.ServiceStatusSTOPPING:
+	default:
+		return db.Service{}, fmt.Errorf("%w: cannot force stop from %s", ErrIllegalTransition, svc.Status)
+	}
+	if !svc.NodeID.Valid {
+		return db.Service{}, ErrNoNode
+	}
+	if !m.cmd.Online(UUIDString(svc.NodeID)) {
+		return db.Service{}, ErrNodeOffline
+	}
+	if err := m.dispatchTracked(ctx, actorID, svc.ID, svc.NodeID, commands.KindStop, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_Stop{Stop: &gen.StopServiceTask{ServiceId: UUIDString(svc.ID), TimeoutSeconds: 0}},
+	}); err != nil {
+		return db.Service{}, err
+	}
+	if svc.Status != db.ServiceStatusSTOPPING {
+		return m.transition(ctx, actorID, svc, db.ServiceStatusSTOPPING, "service.force_stop")
+	}
+	m.audit(ctx, actorID, "service.force_stop", "service", UUIDString(svc.ID), nil)
+	return svc, nil
+}
+
 // RestartService cycles a running service: a stop task immediately followed by a
 // fresh start task, landing the service back in STARTING.
 func (m *Manager) RestartService(ctx context.Context, actorID string, id pgtype.UUID) (db.Service, error) {

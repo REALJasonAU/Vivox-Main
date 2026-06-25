@@ -48,7 +48,14 @@ message SystemInfo {
   string agent_version = 6;
 }
 message LogChunk { string service_id = 1; bytes data = 2; string stream_type = 3; }
-message MetricSnapshot { string service_id = 1; double cpu_usage_percent = 2; uint64 memory_bytes_used = 3; uint64 disk_bytes_used = 4; }
+message MetricSnapshot {
+  string service_id = 1;
+  double cpu_usage_percent = 2;
+  uint64 memory_bytes_used = 3;
+  uint64 disk_bytes_used = 4;
+  uint64 network_rx_bytes = 5;
+  uint64 network_tx_bytes = 6;
+}
 message HealthCheckResult {
   string service_id  = 1;
   bool   healthy     = 2;

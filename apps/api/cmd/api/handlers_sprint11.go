@@ -21,9 +21,12 @@ import (
 // ---------------------------------------------------------------------------
 
 type metricsPoint struct {
-	T   int64   `json:"t"`
-	CPU float64 `json:"cpu"`
-	Mem int64   `json:"mem"`
+	T     int64   `json:"t"`
+	CPU   float64 `json:"cpu"`
+	Mem   int64   `json:"mem"`
+	Disk  int64   `json:"disk"`
+	NetRx int64   `json:"net_rx"`
+	NetTx int64   `json:"net_tx"`
 }
 
 func (a *api) getMetricsHistory(c *fiber.Ctx) error {
@@ -66,8 +69,11 @@ func (a *api) getMetricsHistory(c *fiber.Ctx) error {
 	for i := 0; i < len(results); i += step {
 		z := results[i]
 		var m struct {
-			CPU float64 `json:"cpu"`
-			Mem int64   `json:"mem"`
+			CPU   float64 `json:"cpu"`
+			Mem   int64   `json:"mem"`
+			Disk  int64   `json:"disk"`
+			NetRx int64   `json:"net_rx"`
+			NetTx int64   `json:"net_tx"`
 		}
 		member, ok := z.Member.(string)
 		if !ok {
@@ -76,7 +82,9 @@ func (a *api) getMetricsHistory(c *fiber.Ctx) error {
 		if err := json.Unmarshal([]byte(member), &m); err != nil {
 			continue
 		}
-		points = append(points, metricsPoint{T: int64(z.Score), CPU: m.CPU, Mem: m.Mem})
+		points = append(points, metricsPoint{
+			T: int64(z.Score), CPU: m.CPU, Mem: m.Mem, Disk: m.Disk, NetRx: m.NetRx, NetTx: m.NetTx,
+		})
 	}
 	return c.JSON(points)
 }

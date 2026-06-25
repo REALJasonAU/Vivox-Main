@@ -27,6 +27,8 @@ import { fileRelToAbsolute } from "@/lib/service-routes";
 import { FileTable } from "@/components/file-manager/file-table";
 import { FileTree } from "@/components/file-manager/file-tree";
 import { MonacoPane } from "@/components/file-manager/monaco-pane";
+import { LocalSyncModal } from "@/components/file-manager/local-sync-modal";
+import { NamePromptModal } from "@/components/ui/name-prompt-modal";
 import {
   type EditorTab,
   type FavoriteItem,
@@ -38,7 +40,6 @@ import {
   isTextContent,
   joinPath,
   loadFavorites,
-  openInLocalIDE,
   parentPath,
   readFileAsText,
   relativePath,
@@ -141,6 +142,9 @@ export function FileManager({
   const [vscodeTabs, setVscodeTabs] = useState<EditorTab[]>([]);
   const [activeVscodeTab, setActiveVscodeTab] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [namePrompt, setNamePrompt] = useState<"file" | "folder" | null>(null);
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
 
   const { data, loading, error, refetch } = useApi<FileEntry[]>(
@@ -322,29 +326,52 @@ export function FileManager({
     });
   };
 
-  const onNewFolder = async () => {
-    const name = window.prompt("New folder name");
-    if (!name?.trim()) return;
+  const onNewFolder = () => setNamePrompt("folder");
+
+  const onNewFile = () => setNamePrompt("file");
+
+  const createNamedEntry = async (name: string) => {
     try {
-      await filesApi.mkdir(serviceId, joinPath(currentPath, name.trim()));
-      toast("Folder created", "success");
-      void refetch();
+      if (namePrompt === "folder") {
+        await filesApi.mkdir(serviceId, joinPath(currentPath, name.trim()));
+        toast("Folder created", "success");
+        void refetch();
+      } else if (namePrompt === "file") {
+        const path = joinPath(currentPath, name.trim());
+        await filesApi.write(serviceId, path, "");
+        toast("File created", "success");
+        void refetch();
+        void handleFileClick(path);
+      }
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Failed to create folder", "error");
+      toast(e instanceof Error ? e.message : "Create failed", "error");
+      throw e;
     }
   };
 
-  const onNewFile = async () => {
-    const name = window.prompt("New file name");
-    if (!name?.trim()) return;
-    const path = joinPath(currentPath, name.trim());
+  const uploadFilesToPath = async (targetPath: string, fileList: FileList) => {
     try {
-      await filesApi.write(serviceId, path, "");
-      toast("File created", "success");
+      for (const file of Array.from(fileList)) {
+        const text = await readFileAsText(file);
+        await filesApi.write(serviceId, joinPath(targetPath, file.name), text);
+      }
+      toast(`Uploaded ${fileList.length} file${fileList.length === 1 ? "" : "s"}`, "success");
       void refetch();
-      void handleFileClick(path);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Failed to create file", "error");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Upload failed", "error");
+    }
+  };
+
+  const moveFileToDir = async (fromPath: string, toDir: string) => {
+    const base = fileName(fromPath);
+    const dest = joinPath(toDir, base);
+    if (fromPath === dest || dest.startsWith(`${fromPath}/`)) return;
+    try {
+      await filesApi.move(serviceId, fromPath, dest);
+      toast(`Moved ${base}`, "success");
+      void refetch();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Move failed", "error");
     }
   };
 
@@ -363,9 +390,7 @@ export function FileManager({
   };
 
   const onOpenIDE = () => {
-    const target = fullEditorPath ?? activeVscodeTab ?? currentPath;
-    openInLocalIDE(serviceId, target);
-    toast("Path copied — open in VS Code if extension is installed", "info");
+    setSyncModalOpen(true);
   };
 
   const toggleTreeExpand = (path: string) => {
@@ -391,6 +416,19 @@ export function FileManager({
 
   if (fullEditorPath && fullEditorTab && viewMode !== "vscode") {
     return (
+      <>
+        {syncModalOpen && (
+          <LocalSyncModal serviceId={serviceId} onClose={() => setSyncModalOpen(false)} />
+        )}
+        {namePrompt && (
+          <NamePromptModal
+            title={namePrompt === "folder" ? "New folder" : "New file"}
+            label="Name"
+            placeholder={namePrompt === "folder" ? "my-folder" : "config.json"}
+            onClose={() => setNamePrompt(null)}
+            onConfirm={createNamedEntry}
+          />
+        )}
       <div className="flex h-[min(720px,calc(100vh-12rem))] flex-col overflow-hidden rounded-xl border border-border bg-surface">
         <div className="flex items-center gap-3 border-b border-border px-4 py-2.5">
           <div className="min-w-0 flex-1">
@@ -431,15 +469,28 @@ export function FileManager({
           )}
         </div>
       </div>
+      </>
     );
   }
 
   return (
+    <>
+      {syncModalOpen && (
+        <LocalSyncModal serviceId={serviceId} onClose={() => setSyncModalOpen(false)} />
+      )}
+      {namePrompt && (
+        <NamePromptModal
+          title={namePrompt === "folder" ? "New folder" : "New file"}
+          label="Name"
+          placeholder={namePrompt === "folder" ? "my-folder" : "config.json"}
+          onClose={() => setNamePrompt(null)}
+          onConfirm={createNamedEntry}
+        />
+      )}
     <div className="flex h-[min(720px,calc(100vh-12rem))] flex-col overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <h2 className="text-base font-semibold text-foreground">File Manager</h2>
-          <p className="text-xs text-muted">Browse and edit server files</p>
         </div>
         <Breadcrumbs currentPath={currentPath} onNavigate={goToPath} />
       </div>
@@ -462,10 +513,10 @@ export function FileManager({
           <ExternalLink className="size-3.5" />
           <span className="hidden sm:inline">Open in Local VS Code</span>
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => void onNewFolder()}>
+        <Button variant="ghost" size="sm" onClick={onNewFolder}>
           <FolderPlus className="size-3.5" /> New Folder
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => void onNewFile()}>
+        <Button variant="ghost" size="sm" onClick={onNewFile}>
           <FilePlus className="size-3.5" /> New File
         </Button>
         <input ref={uploadRef} type="file" className="hidden" onChange={(e) => void onUpload(e)} />
@@ -511,7 +562,7 @@ export function FileManager({
         )}
 
         {viewMode === "vscode" ? (
-          <div className="flex min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1">
             <aside className="w-52 shrink-0 overflow-y-auto border-r border-border bg-surface-raised/20 p-2">
               <FileTree
                 serviceId={serviceId}
@@ -521,9 +572,13 @@ export function FileManager({
                 expanded={expandedTree}
                 onToggleExpand={toggleTreeExpand}
                 onSelectFile={(p) => void openVscodeTab(p)}
+                dropTargetPath={dropTargetPath}
+                onDropTarget={setDropTargetPath}
+                onUploadToPath={uploadFilesToPath}
+                onMoveFile={moveFileToDir}
               />
             </aside>
-            <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {vscodeTabs.length > 0 && (
                 <div className="flex items-center gap-0.5 overflow-x-auto border-b border-border bg-background/30 px-1 py-1">
                   {vscodeTabs.map((tab) => {
@@ -573,7 +628,7 @@ export function FileManager({
                   </Button>
                 )}
               </div>
-              <div className="flex-1 overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 {!activeVscode ? (
                   <p className="p-6 text-sm text-muted">Select a file from the tree to edit</p>
                 ) : activeVscode.loading ? (
@@ -581,13 +636,15 @@ export function FileManager({
                 ) : activeVscode.binary ? (
                   <p className="p-6 text-sm text-muted">Binary file — preview not available</p>
                 ) : (
-                  <MonacoPane
+                  <div className="flex h-full min-h-0 flex-1 flex-col">
+                    <MonacoPane
                     path={activeVscode.path}
                     content={activeVscode.content}
                     onChange={(v) =>
                       setVscodeTabs((prev) => prev.map((t) => (t.path === activeVscode.path ? { ...t, content: v } : t)))
                     }
                   />
+                  </div>
                 )}
               </div>
             </div>
@@ -603,6 +660,10 @@ export function FileManager({
                 expanded={expandedTree}
                 onToggleExpand={toggleTreeExpand}
                 onSelectFile={(p) => void handleFileClick(p)}
+                dropTargetPath={dropTargetPath}
+                onDropTarget={setDropTargetPath}
+                onUploadToPath={uploadFilesToPath}
+                onMoveFile={moveFileToDir}
               />
             </aside>
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -622,6 +683,10 @@ export function FileManager({
                 onToggleSelectAll={toggleSelectAll}
                 onNavigateDir={goToPath}
                 onOpenFile={(p) => void handleFileClick(p)}
+                dropTargetPath={dropTargetPath}
+                onDropTarget={setDropTargetPath}
+                onUploadToPath={uploadFilesToPath}
+                onMoveFile={moveFileToDir}
               />
             </div>
           </div>
@@ -643,10 +708,15 @@ export function FileManager({
               onToggleSelectAll={toggleSelectAll}
               onNavigateDir={goToPath}
               onOpenFile={(p) => void handleFileClick(p)}
+              dropTargetPath={dropTargetPath}
+              onDropTarget={setDropTargetPath}
+              onUploadToPath={uploadFilesToPath}
+              onMoveFile={moveFileToDir}
             />
           </div>
         )}
       </div>
     </div>
+    </>
   );
 }

@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, RefreshCw, Save } from "lucide-react";
-import { servicesApi, templatesApi } from "@/lib/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Eye, EyeOff, RefreshCw, RotateCcw, Save } from "lucide-react";
+import { servicesApi } from "@/lib/api";
 import { toast } from "@/hooks/useToast";
 import type { ApiConfigurableField, ApiTemplate, Service } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   buildStartupRows,
+  defaultForStartupKey,
   templateIdForService,
 } from "@/lib/game-service";
+import { getTemplatesCached } from "@/lib/templates-cache";
 import { generateSecurePassword } from "@/lib/password";
 
 const inputClass =
@@ -35,14 +37,17 @@ export function StartupTab({
   const [template, setTemplate] = useState<ApiTemplate | null>(null);
   const [fieldDefs, setFieldDefs] = useState<ApiConfigurableField[]>([]);
   const [rows, setRows] = useState<{ key: string; value: string }[]>([]);
+  const [startupCmd, setStartupCmd] = useState("");
   const [masked, setMasked] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const syncedRef = useRef<string | null>(null);
 
   const templateId = useMemo(() => templateIdForService(service), [service]);
+  const templateDefaultCmd = template?.startup_cmd?.trim() ?? "";
 
   useEffect(() => {
-    void templatesApi.list().then((templates) => {
+    void getTemplatesCached().then((templates) => {
       const id = templateId ?? (service.type === "game" ? "minecraft" : null);
       const match = id ? templates.find((t) => t.id === id) : undefined;
       setTemplate(match ?? null);
@@ -52,20 +57,40 @@ export function StartupTab({
 
   useEffect(() => {
     setRows(buildStartupRows(service, template, HIDDEN_KEYS));
+    setStartupCmd(service.config.startup_cmd?.trim() || template?.startup_cmd?.trim() || "");
   }, [service, template]);
 
   useEffect(() => {
-    const cmd = template?.startup_cmd?.trim();
-    if (!cmd || service.config.startup_cmd?.trim()) return;
-    void servicesApi
-      .updateConfig(service.id, { startup_cmd: cmd })
-      .then((updated) => {
-        if (updated) onChanged(updated);
-      })
-      .catch(() => {
-        /* non-fatal — user can redeploy */
-      });
-  }, [template, service.id, service.config.startup_cmd, onChanged]);
+    if (!template || syncedRef.current === service.id) return;
+    syncedRef.current = service.id;
+
+    const env = service.config.environment ?? {};
+    const mergedRows = buildStartupRows(service, template, HIDDEN_KEYS);
+    const missing = mergedRows.filter((r) => env[r.key] === undefined);
+    const needsCmd = !service.config.startup_cmd?.trim() && !!templateDefaultCmd;
+
+    if (missing.length === 0 && !needsCmd) return;
+
+    const nextEnv = { ...env };
+    for (const row of missing) {
+      nextEnv[row.key] = row.value;
+    }
+
+    void (async () => {
+      try {
+        let updated = service;
+        if (missing.length > 0) {
+          updated = await servicesApi.updateEnv(service.id, nextEnv);
+        }
+        if (needsCmd && templateDefaultCmd) {
+          updated = await servicesApi.updateConfig(service.id, { startup_cmd: templateDefaultCmd });
+        }
+        if (missing.length > 0 || needsCmd) onChanged(updated);
+      } catch {
+        /* non-fatal — user can save manually */
+      }
+    })();
+  }, [template, service, templateDefaultCmd, onChanged]);
 
   const toggleMask = (key: string) => {
     setMasked((prev) => {
@@ -79,6 +104,15 @@ export function StartupTab({
   const updateValue = (key: string, val: string) =>
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, value: val } : r)));
 
+  const resetRow = (key: string) => {
+    const def = defaultForStartupKey(key, template);
+    updateValue(key, def);
+  };
+
+  const resetStartupCmd = () => {
+    setStartupCmd(templateDefaultCmd);
+  };
+
   const save = async () => {
     setSaving(true);
     setMsg(null);
@@ -88,10 +122,15 @@ export function StartupTab({
     const edited = Object.fromEntries(rows.filter((r) => r.key.trim()).map((r) => [r.key.trim(), r.value]));
     const env = { ...hidden, ...edited };
     try {
-      const updated = await servicesApi.updateEnv(service.id, env);
+      let updated = await servicesApi.updateEnv(service.id, env);
+      const cmd = startupCmd.trim();
+      const prevCmd = service.config.startup_cmd?.trim() ?? "";
+      if (cmd !== prevCmd) {
+        updated = await servicesApi.updateConfig(service.id, { startup_cmd: cmd });
+      }
       onChanged(updated);
       toast("Startup settings saved", "success");
-      setMsg("Restart the service to apply changes.");
+      setMsg("Restart the server to apply changes.");
     } catch (e) {
       const m = e instanceof Error ? e.message : "Save failed";
       setMsg(m);
@@ -101,27 +140,41 @@ export function StartupTab({
     }
   };
 
-  const startupCmdPreview = service.config.startup_cmd?.trim() || template?.startup_cmd?.trim();
-
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
       <div>
         <h2 className="text-sm font-semibold text-foreground">Startup parameters</h2>
-        <p className="mt-1 text-xs text-muted">
-          Environment variables passed to the container. Keys are defined by the game template.
-        </p>
       </div>
 
-      {startupCmdPreview && (
-        <div className="rounded-lg border border-border bg-background/40 px-3 py-2.5">
+      <div className="rounded-lg border border-border bg-background/40 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">
-            Startup command (from template)
+            Startup command
           </p>
-          <p className="mt-1 max-h-24 overflow-y-auto font-mono text-[11px] leading-relaxed text-muted">
-            {startupCmdPreview}
-          </p>
+          {templateDefaultCmd && startupCmd !== templateDefaultCmd && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              title="Reset to template default"
+              onClick={resetStartupCmd}
+            >
+              <RotateCcw className="size-3" /> Reset
+            </Button>
+          )}
         </div>
-      )}
+        <textarea
+          value={startupCmd}
+          onChange={(e) => setStartupCmd(e.target.value)}
+          rows={3}
+          placeholder={templateDefaultCmd || "Default container entrypoint"}
+          className={cn(inputClass, "mt-2 w-full resize-y py-2 leading-relaxed")}
+        />
+        {templateDefaultCmd && (
+          <p className="mt-1 text-[10px] text-subtle">Template default available via Reset.</p>
+        )}
+      </div>
 
       <div className="flex flex-col gap-2">
         {rows.length === 0 && (
@@ -135,6 +188,8 @@ export function StartupTab({
           const isPassword = meta?.field_type === "password";
           const isNumber = meta?.field_type === "number";
           const isRcon = row.key === "RCON_PASS";
+          const defaultVal = defaultForStartupKey(row.key, template);
+          const canReset = defaultVal !== "" && row.value !== defaultVal;
 
           return (
             <div key={row.key} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
@@ -165,6 +220,18 @@ export function StartupTab({
                   placeholder="value"
                   className={cn(inputClass, "h-9 flex-1")}
                 />
+              )}
+              {canReset && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 px-2"
+                  title="Reset to template default"
+                  onClick={() => resetRow(row.key)}
+                >
+                  <RotateCcw className="size-3.5" />
+                </Button>
               )}
               {isRcon && (
                 <Button

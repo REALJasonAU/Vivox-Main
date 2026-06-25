@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Copy, X } from "lucide-react";
 import type { Node } from "@/lib/types";
@@ -27,6 +27,14 @@ function defaultApiHost(): string {
 export function NodeSetupPanel({ node, token, onClose }: Props) {
   const [tab, setTab] = useState<SetupTab>("quickinstall");
   const [apiHost, setApiHost] = useState(defaultApiHost);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
 
   const quickInstallContent = useMemo(() => {
     const panelUrl =

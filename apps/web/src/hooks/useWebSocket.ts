@@ -316,10 +316,12 @@ class WebSocketManager {
 
     if (this.connecting) return;
 
-    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
-
+    if (
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING ||
+      this.ws?.readyState === WebSocket.CLOSING  // ← guard: wait for old socket to fully close
+    ) {
       return;
-
     }
 
 
@@ -391,6 +393,30 @@ class WebSocketManager {
       if (generation !== this.socketGeneration) return;
 
       this.connecting = false;
+
+      // If all topics were removed while we were CONNECTING (e.g. StrictMode
+      // double-mount), close cleanly now that we're OPEN instead of leaving
+      // the socket hanging or triggering Chrome's "closed before established".
+
+      if (this.intentionalClose || this.topics.size === 0) {
+
+        ws.onopen = null;
+
+        ws.onmessage = null;
+
+        ws.onerror = null;
+
+        ws.onclose = null;
+
+        ws.close();
+
+        this.ws = null;
+
+        this.setStatus("closed");
+
+        return;
+
+      }
 
       this.reconnectAttempts = 0;
 
@@ -562,15 +588,33 @@ class WebSocketManager {
 
         if (this.ws) {
 
-          this.teardownSocket(this.ws);
+          const rs = this.ws.readyState;
 
-          this.ws = null;
+          if (rs === WebSocket.CONNECTING) {
+
+            // Don't close a CONNECTING socket — that's what causes Chrome's
+            // "WebSocket is closed before the connection is established" error.
+            // Set intentionalClose so onopen/onclose won't reconnect.
+
+          } else {
+
+            this.teardownSocket(this.ws);
+
+            this.ws = null;
+
+            this.connecting = false;
+
+            this.setStatus("closed");
+
+          }
+
+        } else {
+
+          this.connecting = false;
+
+          this.setStatus("closed");
 
         }
-
-        this.connecting = false;
-
-        this.setStatus("closed");
 
       }
 

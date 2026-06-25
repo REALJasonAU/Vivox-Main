@@ -10,6 +10,9 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Server,
+  Skull,
+  Square,
   Trash2,
   Power,
 } from "lucide-react";
@@ -24,6 +27,13 @@ import { StatusBadge } from "@/components/status-badge";
 import { toast } from "@/hooks/useToast";
 import { isTransient } from "@/lib/status";
 import {
+  cpuSharesToThreads,
+  formatCpuLimit,
+  formatMemoryLimit,
+  formatStorageLimit,
+  threadsToCpuShares,
+} from "@/lib/allocations";
+import {
   formatPortBinding,
   isValidHostIp,
   mappingToPortBinding,
@@ -31,6 +41,7 @@ import {
   portBindingToMapping,
   type PortBinding,
 } from "@/lib/ports";
+import { formatRelativeTime } from "@/lib/utils";
 
 const inputClass =
   "h-9 w-full rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus focus:ring-1 focus:ring-border-focus";
@@ -61,7 +72,7 @@ export default function AdminServerEditPage({
 
   const [ownerId, setOwnerId] = useState("");
   const [memMB, setMemMB] = useState(0);
-  const [cpuShares, setCpuShares] = useState(0);
+  const [cpuThreads, setCpuThreads] = useState(1);
   const [diskGB, setDiskGB] = useState(0);
   const [bindings, setBindings] = useState<PortBinding[]>([]);
   const [mainPortIndex, setMainPortIndex] = useState(0);
@@ -72,7 +83,7 @@ export default function AdminServerEditPage({
     if (!service) return;
     setOwnerId(service.owner_id);
     setMemMB(service.resource_limits.memory_mb);
-    setCpuShares(service.resource_limits.cpu_shares);
+    setCpuThreads(cpuSharesToThreads(service.resource_limits.cpu_shares));
     setDiskGB(service.resource_limits.disk_gb);
     const b = bindingsFromService(service);
     setBindings(b.length ? b : [{ hostIp: "0.0.0.0", host: 0, container: 0, proto: "tcp" }]);
@@ -104,7 +115,7 @@ export default function AdminServerEditPage({
         resource_limits: {
           ...service.resource_limits,
           memory_mb: memMB,
-          cpu_shares: cpuShares,
+          cpu_shares: threadsToCpuShares(cpuThreads),
           disk_gb: diskGB,
         },
         ports,
@@ -150,30 +161,46 @@ export default function AdminServerEditPage({
   if (!service) return null;
 
   const locked = isTransient(service.status);
+  const canStop = service.status === "RUNNING" || service.status === "STARTING";
+  const canForceStop =
+    service.status === "RUNNING" ||
+    service.status === "STARTING" ||
+    service.status === "STOPPING";
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <Link
-        href="/admin/servers"
-        className="inline-flex w-fit items-center gap-1.5 text-sm text-muted hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Back to servers
-      </Link>
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">{service.name}</h1>
-          <p className="mt-1 flex items-center gap-2 text-sm text-muted">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <Link
+            href="/admin/servers"
+            className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" /> Back to servers
+          </Link>
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-vivox-500/20">
+              <Server className="size-5 text-vivox-400" />
+            </span>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">{service.name}</h1>
+              <p className="font-mono text-xs text-muted">{service.id}</p>
+            </div>
             <StatusBadge status={service.status} />
-            <span className="capitalize">{service.type}</span>
-          </p>
+          </div>
         </div>
         <Link
           href={`/services/${service.id}/overview`}
-          className="inline-flex items-center gap-1 text-sm text-vivox-500 hover:text-vivox-400"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-vivox-500 hover:border-vivox-500/40 hover:text-vivox-400"
         >
-          Open panel <ExternalLink className="size-3.5" />
+          Open customer panel <ExternalLink className="size-3.5" />
         </Link>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Type" value={service.type} />
+        <StatCard label="Memory" value={formatMemoryLimit(service.resource_limits.memory_mb)} />
+        <StatCard label="CPU" value={formatCpuLimit(service.resource_limits.cpu_shares)} />
+        <StatCard label="Disk" value={formatStorageLimit(service.resource_limits.disk_gb)} />
       </div>
 
       <section className="rounded-xl border border-border bg-surface p-5">
@@ -190,7 +217,12 @@ export default function AdminServerEditPage({
         <h2 className="text-sm font-medium text-foreground">Resource limits</h2>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <LimitInput label="Memory (MB)" value={memMB} onChange={setMemMB} />
-          <LimitInput label="CPU shares" value={cpuShares} onChange={setCpuShares} />
+          <LimitInput
+            label="CPU threads (1 = 100%)"
+            value={cpuThreads}
+            onChange={setCpuThreads}
+            hint={formatCpuLimit(threadsToCpuShares(cpuThreads))}
+          />
           <LimitInput label="Disk (GB)" value={diskGB} onChange={setDiskGB} />
         </div>
         <p className="mt-2 text-xs text-muted">Applied on next restart.</p>
@@ -304,7 +336,7 @@ export default function AdminServerEditPage({
           disabled={
             locked ||
             memMB <= 0 ||
-            cpuShares <= 0 ||
+            cpuThreads <= 0 ||
             diskGB <= 0 ||
             bindings.some((b) => !isValidHostIp(b.hostIp))
           }
@@ -314,8 +346,48 @@ export default function AdminServerEditPage({
       </div>
 
       <section className="rounded-xl border border-border bg-surface p-5">
+        <h2 className="text-sm font-medium text-foreground">Server metadata</h2>
+        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-muted">Created</dt>
+            <dd className="text-foreground">{formatRelativeTime(service.created_at)}</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Node</dt>
+            <dd className="font-mono text-foreground">{service.node_id ?? "—"}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-5">
         <h2 className="text-xs uppercase tracking-wider text-muted">Admin actions</h2>
         <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={busy === "stop"}
+            disabled={!canStop || !!busy}
+            onClick={() =>
+              runAction("stop", () => servicesApi.stop(service.id), "Stop sent")
+            }
+          >
+            <Square className="size-3.5" /> Stop
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            loading={busy === "force-stop"}
+            disabled={!canForceStop || !!busy}
+            onClick={() =>
+              runAction(
+                "force-stop",
+                () => servicesApi.forceStop(service.id),
+                "Force stop sent",
+              )
+            }
+          >
+            <Skull className="size-3.5" /> Force stop
+          </Button>
           <Button
             size="sm"
             variant="secondary"
@@ -385,14 +457,25 @@ export default function AdminServerEditPage({
   );
 }
 
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-1 text-lg font-semibold tracking-tight text-foreground capitalize">{value}</p>
+    </div>
+  );
+}
+
 function LimitInput({
   label,
   value,
   onChange,
+  hint,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
+  hint?: string;
 }) {
   return (
     <label className="flex flex-col gap-1.5">
@@ -404,6 +487,7 @@ function LimitInput({
         onChange={(e) => onChange(Number(e.target.value))}
         className={inputClass}
       />
+      {hint && <span className="text-[11px] text-subtle">{hint}</span>}
     </label>
   );
 }

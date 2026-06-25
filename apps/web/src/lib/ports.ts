@@ -174,3 +174,61 @@ export function portsForDisplay(config: {
   out.sort((a, b) => (a.isMain === b.isMain ? 0 : a.isMain ? -1 : 1));
   return out;
 }
+
+export interface ConnectEndpoint {
+  host: string;
+  port: number;
+  proto: string;
+}
+
+/** Resolve the main game/connect port for a service. */
+export function mainConnectEndpoint(service: {
+  config: {
+    ports?: string[];
+    port_mappings?: PortMapping[];
+    main_port?: number;
+    environment?: Record<string, string>;
+  };
+  node_host?: string | null;
+}): ConnectEndpoint | null {
+  const config = service.config;
+  const mappings =
+    config.port_mappings && config.port_mappings.length > 0
+      ? config.port_mappings
+      : (config.ports ?? []).map((p) =>
+          portBindingToMapping(parsePortBinding(p.split(" (")[0] ?? p)),
+        );
+
+  if (mappings.length === 0) return null;
+
+  const mainContainer = config.main_port;
+  let chosen = mappings[0];
+  for (const m of mappings) {
+    const b = mappingToPortBinding(m);
+    const isMain =
+      m.alias === "main" ||
+      (mainContainer != null && mainContainer > 0 && b.container === mainContainer);
+    if (isMain) {
+      chosen = m;
+      break;
+    }
+  }
+
+  const b = mappingToPortBinding(chosen);
+  const port = b.host > 0 ? b.host : b.container;
+  const bindIp = (b.hostIp || "0.0.0.0").trim();
+  const envIp = config.environment?.APP_PUBLIC_IP?.trim();
+  const host =
+    envIp ||
+    (bindIp !== "0.0.0.0" && bindIp !== "::" ? bindIp : "") ||
+    service.node_host?.trim() ||
+    "";
+
+  return { host, port, proto: (b.proto || "tcp").toLowerCase() };
+}
+
+/** Player-facing connect string: host:port */
+export function formatConnectAddress(ep: ConnectEndpoint): string {
+  if (ep.host) return `${ep.host}:${ep.port}`;
+  return `:${ep.port}`;
+}

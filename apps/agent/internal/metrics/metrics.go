@@ -11,52 +11,85 @@ import (
 	"time"
 )
 
+// Sample is one resource snapshot for a running service.
+type Sample struct {
+	CPU        float64
+	MemBytes   uint64
+	DiskBytes  uint64
+	NetRxBytes uint64
+	NetTxBytes uint64
+}
+
 // MetricSink receives a computed snapshot. *client.Sender satisfies it.
 type MetricSink interface {
-	SendMetric(serviceID string, cpuPercent float64, memBytes uint64) error
+	SendMetric(serviceID string, sample Sample) error
 }
 
 // StatsOpener returns a one-shot container stats stream (Docker's
 // ContainerStats with stream=false). The caller closes the returned reader.
 type StatsOpener func(ctx context.Context) (io.ReadCloser, error)
 
+// DiskReader returns data-directory bytes used. The bool is false when
+// measurement failed or was skipped this tick.
+type DiskReader func(ctx context.Context) (uint64, bool)
+
+const diskSampleEvery = 12 // every 12 ticks at 5s ≈ 60s
+
 // Poll samples stats every interval and forwards a snapshot until ctx is
 // cancelled. Individual sampling errors are non-fatal (the container may be
 // briefly unavailable around start/stop); they skip a tick rather than abort.
-func Poll(ctx context.Context, serviceID string, interval time.Duration, open StatsOpener, sink MetricSink) {
+func Poll(ctx context.Context, serviceID string, interval time.Duration, open StatsOpener, disk DiskReader, sink MetricSink) {
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	var lastDisk uint64
+	tick := 0
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			cpu, mem, ok := sample(ctx, open)
+			cpu, mem, rx, tx, ok := sample(ctx, open)
 			if !ok {
 				continue
 			}
-			_ = sink.SendMetric(serviceID, cpu, mem)
+
+			tick++
+			if disk != nil && tick%diskSampleEvery == 0 {
+				if d, ok := disk(ctx); ok {
+					lastDisk = d
+				}
+			}
+
+			_ = sink.SendMetric(serviceID, Sample{
+				CPU:        cpu,
+				MemBytes:   mem,
+				DiskBytes:  lastDisk,
+				NetRxBytes: rx,
+				NetTxBytes: tx,
+			})
 		}
 	}
 }
 
 // sample reads one stats document and computes CPU percent + memory bytes.
-func sample(ctx context.Context, open StatsOpener) (cpuPercent float64, memBytes uint64, ok bool) {
+func sample(ctx context.Context, open StatsOpener) (cpuPercent float64, memBytes, netRx, netTx uint64, ok bool) {
 	r, err := open(ctx)
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, 0, 0, false
 	}
 	defer r.Close()
 
 	var s statsJSON
 	if err := json.NewDecoder(r).Decode(&s); err != nil {
-		return 0, 0, false
+		return 0, 0, 0, 0, false
 	}
-	return calcCPUPercent(s), calcMemoryBytes(s), true
+	rx, tx := calcNetworkBytes(s)
+	return calcCPUPercent(s), calcMemoryBytes(s), rx, tx, true
 }
 
 // calcCPUPercent applies Docker's standard CPU-percentage formula:
@@ -93,6 +126,14 @@ func calcMemoryBytes(s statsJSON) uint64 {
 	return usage - cache
 }
 
+func calcNetworkBytes(s statsJSON) (rx, tx uint64) {
+	for _, n := range s.Networks {
+		rx += n.RxBytes
+		tx += n.TxBytes
+	}
+	return rx, tx
+}
+
 // statsJSON is the subset of Docker's container stats document we consume. It is
 // decoded directly from the stats stream so the metrics package stays
 // independent of Docker SDK type renames across versions.
@@ -103,6 +144,12 @@ type statsJSON struct {
 		Usage uint64            `json:"usage"`
 		Stats map[string]uint64 `json:"stats"`
 	} `json:"memory_stats"`
+	Networks map[string]networkStats `json:"networks"`
+}
+
+type networkStats struct {
+	RxBytes uint64 `json:"rx_bytes"`
+	TxBytes uint64 `json:"tx_bytes"`
 }
 
 type cpuStats struct {

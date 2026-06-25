@@ -3,6 +3,26 @@
 
 AGENT_ENV="${AGENT_ENV:-/etc/vivox-agent/agent.env}"
 
+require_root() {
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    echo "✗ Run as root (e.g. sudo bash $0 ...)." >&2
+    exit 1
+  fi
+}
+
+ensure_go() {
+  if command -v go >/dev/null 2>&1; then
+    export PATH=$PATH:/usr/local/go/bin
+    return 0
+  fi
+  echo "Go not found — installing Go 1.25.0..."
+  curl -fsSL https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o /tmp/go.tar.gz
+  tar -C /usr/local -xzf /tmp/go.tar.gz
+  rm -f /tmp/go.tar.gz
+  echo 'export PATH=$PATH:/usr/local/go/bin' >/etc/profile.d/go.sh
+  export PATH=$PATH:/usr/local/go/bin
+}
+
 # Derive gRPC address from panel URL unless CONTROL_ADDR is set.
 panel_to_control_addr() {
   local panel_url="$1"

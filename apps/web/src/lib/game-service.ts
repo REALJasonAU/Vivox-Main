@@ -164,17 +164,17 @@ export function buildStartupRows(
   const rows: { key: string; value: string }[] = [];
   const seen = new Set<string>();
 
-  for (const [key, defaultVal] of Object.entries(template.env ?? {})) {
-    if (hiddenKeys.has(key)) continue;
-    seen.add(key);
-    rows.push({ key, value: env[key] ?? defaultVal });
-  }
-
   for (const field of template.configurable ?? []) {
     const key = field.env;
     if (!key || hiddenKeys.has(key) || seen.has(key)) continue;
     seen.add(key);
     rows.push({ key, value: env[key] ?? field.default ?? "" });
+  }
+
+  for (const [key, defaultVal] of Object.entries(template.env ?? {})) {
+    if (hiddenKeys.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ key, value: env[key] ?? defaultVal });
   }
 
   for (const [key, value] of Object.entries(env)) {
@@ -183,4 +183,15 @@ export function buildStartupRows(
   }
 
   return rows;
+}
+
+/** Template default for a startup env key (configurable field or tmpl.env). */
+export function defaultForStartupKey(
+  key: string,
+  template: ApiTemplate | null,
+): string {
+  if (!template) return "";
+  const field = template.configurable?.find((f) => f.env === key || f.key === key);
+  if (field) return field.default ?? "";
+  return template.env?.[key] ?? "";
 }

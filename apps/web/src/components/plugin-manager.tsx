@@ -292,8 +292,10 @@ export function PluginManager({ service }: Props) {
           >
             <div className="flex flex-col gap-2">
               {loadingInstalled ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="size-5 animate-spin text-muted" />
+                <div className="flex flex-col gap-2 py-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-xl border border-border bg-surface-raised/60" />
+                  ))}
                 </div>
               ) : displayInstalled.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface py-10 text-center text-sm text-muted">
@@ -320,8 +322,10 @@ export function PluginManager({ service }: Props) {
       {!showInstalled && (
         <>
           {searching ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="size-5 animate-spin text-muted" />
+            <div className="flex flex-col gap-2 py-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-16 animate-pulse rounded-xl border border-border bg-surface-raised/50" />
+              ))}
             </div>
           ) : displayResults.length === 0 && query !== "" ? (
             <div className="rounded-xl border border-border bg-surface py-10 text-center text-sm text-muted">

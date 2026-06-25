@@ -195,6 +195,105 @@ func (a *api) mkdirFile(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+type deleteFileReq struct {
+	Path string `json:"path"`
+}
+
+type moveFileReq struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+func (a *api) deleteFile(c *fiber.Ctx) error {
+	svc, err := a.loadOwned(c)
+	if err != nil {
+		return err
+	}
+	var req deleteFileReq
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	if req.Path == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "path is required")
+	}
+	safe, err := validateServiceFilePath(req.Path)
+	if err != nil {
+		return err
+	}
+	_, err = a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_DeleteFile{
+			DeleteFile: &gen.FileDeleteTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      safe,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a *api) moveFile(c *fiber.Ctx) error {
+	svc, err := a.loadOwned(c)
+	if err != nil {
+		return err
+	}
+	var req moveFileReq
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	if req.From == "" || req.To == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "from and to are required")
+	}
+	fromSafe, err := validateServiceFilePath(req.From)
+	if err != nil {
+		return err
+	}
+	toSafe, err := validateServiceFilePath(req.To)
+	if err != nil {
+		return err
+	}
+	readResult, err := a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_ReadFile{
+			ReadFile: &gen.FileReadTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      fromSafe,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if readResult.Error != "" {
+		return fiber.NewError(fiber.StatusInternalServerError, readResult.Error)
+	}
+	_, err = a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_WriteFile{
+			WriteFile: &gen.FileWriteTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      toSafe,
+				Content:   readResult.Content,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = a.dispatchFileCommand(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_DeleteFile{
+			DeleteFile: &gen.FileDeleteTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      fromSafe,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func (a *api) writeFile(c *fiber.Ctx) error {
 	svc, err := a.loadOwned(c)
 	if err != nil {

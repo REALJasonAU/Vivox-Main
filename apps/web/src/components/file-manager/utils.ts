@@ -153,11 +153,6 @@ export async function readFileAsText(file: File): Promise<string> {
   });
 }
 
-export function openInLocalIDE(serviceId: string, absPath: string) {
-  const rel = relativePath(absPath);
-  const url = `vscode://vivox-files/open?service=${encodeURIComponent(serviceId)}&path=${encodeURIComponent(rel)}`;
-  window.location.href = url;
-  if (navigator.clipboard?.writeText) {
-    void navigator.clipboard.writeText(rel);
-  }
+export function openInLocalIDE(_serviceId: string, _absPath: string) {
+  /* replaced by LocalSyncModal — kept for call-site compatibility */
 }

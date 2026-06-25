@@ -95,7 +95,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       onClick?.(e);
     };
 
-    const iconAnimClass = actionType !== "none" ? actionAnimClass[actionType] : undefined;
+    const iconAnimClass =
+      actionType !== "none" && animKey > 0 ? actionAnimClass[actionType] : undefined;
 
     const {
       onDrag: _onDrag,

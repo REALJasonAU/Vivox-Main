@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, Server } from "lucide-react";
 import { nodesApi } from "@/lib/api";
@@ -33,8 +33,19 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
     status: statusMap.get(s.id) ?? s.status,
   }));
 
+  useEffect(() => {
+    return () => setSetup(null);
+  }, []);
+
   const rotateToken = async () => {
     if (!node) return;
+    if (
+      !confirm(
+        "Re-registering rotates the agent API token. The current agent will disconnect until updated with the new token. Continue?",
+      )
+    ) {
+      return;
+    }
     setRotating(true);
     try {
       const res = await nodesApi.rotateToken(id);
@@ -111,7 +122,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
         <StatCard label="CPU cores" value={String(displayNode.capacity.cpu_cores || "—")} />
         <StatCard label="RAM" value={displayNode.capacity.ram_mb > 0 ? `${Math.round(displayNode.capacity.ram_mb / 1024)} GB` : "—"} />
         <StatCard label="Disk" value={displayNode.capacity.disk_gb > 0 ? `${displayNode.capacity.disk_gb} GB` : "—"} />
-        <StatCard label="Services" value={String(displayNode.service_count ?? svcList.length)} />
+        <StatCard label="Servers" value={String(displayNode.service_count ?? svcList.length)} />
         <StatCard label="Memory used" value={`${displayNode.memory_used_mb ?? 0} MB`} />
       </div>
 
@@ -137,14 +148,14 @@ export default function NodeDetailPage({ params }: { params: Promise<{ id: strin
 
       <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="border-b border-border px-4 py-3">
-          <h2 className="text-sm font-medium text-foreground">Assigned services</h2>
+          <h2 className="text-sm font-medium text-foreground">Assigned servers</h2>
         </div>
         {servicesLoading ? (
           <div className="p-4">
             <Skeleton className="h-24" />
           </div>
         ) : liveServices.length === 0 ? (
-          <p className="p-6 text-center text-sm text-muted">No services on this node</p>
+          <p className="p-6 text-center text-sm text-muted">No servers on this node</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-surface-raised text-left text-xs uppercase tracking-wider text-muted">

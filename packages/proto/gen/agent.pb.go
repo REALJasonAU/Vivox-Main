@@ -667,6 +667,8 @@ type MetricSnapshot struct {
 	CpuUsagePercent float64                `protobuf:"fixed64,2,opt,name=cpu_usage_percent,json=cpuUsagePercent,proto3" json:"cpu_usage_percent,omitempty"`
 	MemoryBytesUsed uint64                 `protobuf:"varint,3,opt,name=memory_bytes_used,json=memoryBytesUsed,proto3" json:"memory_bytes_used,omitempty"`
 	DiskBytesUsed   uint64                 `protobuf:"varint,4,opt,name=disk_bytes_used,json=diskBytesUsed,proto3" json:"disk_bytes_used,omitempty"`
+	NetworkRxBytes  uint64                 `protobuf:"varint,5,opt,name=network_rx_bytes,json=networkRxBytes,proto3" json:"network_rx_bytes,omitempty"`
+	NetworkTxBytes  uint64                 `protobuf:"varint,6,opt,name=network_tx_bytes,json=networkTxBytes,proto3" json:"network_tx_bytes,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -725,6 +727,20 @@ func (x *MetricSnapshot) GetMemoryBytesUsed() uint64 {
 func (x *MetricSnapshot) GetDiskBytesUsed() uint64 {
 	if x != nil {
 		return x.DiskBytesUsed
+	}
+	return 0
+}
+
+func (x *MetricSnapshot) GetNetworkRxBytes() uint64 {
+	if x != nil {
+		return x.NetworkRxBytes
+	}
+	return 0
+}
+
+func (x *MetricSnapshot) GetNetworkTxBytes() uint64 {
+	if x != nil {
+		return x.NetworkTxBytes
 	}
 	return 0
 }
@@ -1977,13 +1993,15 @@ const file_agent_proto_rawDesc = "" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\x12\x1f\n" +
 	"\vstream_type\x18\x03 \x01(\tR\n" +
-	"streamType\"\xaf\x01\n" +
+	"streamType\"\x83\x02\n" +
 	"\x0eMetricSnapshot\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12*\n" +
 	"\x11cpu_usage_percent\x18\x02 \x01(\x01R\x0fcpuUsagePercent\x12*\n" +
 	"\x11memory_bytes_used\x18\x03 \x01(\x04R\x0fmemoryBytesUsed\x12&\n" +
-	"\x0fdisk_bytes_used\x18\x04 \x01(\x04R\rdiskBytesUsed\"\xc5\x01\n" +
+	"\x0fdisk_bytes_used\x18\x04 \x01(\x04R\rdiskBytesUsed\x12(\n" +
+	"\x10network_rx_bytes\x18\x05 \x01(\x04R\x0enetworkRxBytes\x12(\n" +
+	"\x10network_tx_bytes\x18\x06 \x01(\x04R\x0enetworkTxBytes\"\xc5\x01\n" +
 	"\x11HealthCheckResult\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x18\n" +

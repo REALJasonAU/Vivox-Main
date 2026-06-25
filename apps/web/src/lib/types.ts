@@ -201,6 +201,8 @@ export interface Service {
   type: ServiceType;
   status: ServiceStatus;
   node_id?: string | null;
+  /** Node hostname/IP (from node name) for connect address display. */
+  node_host?: string | null;
   resource_limits: ResourceLimits;
   config: ServiceConfig;
   tags?: string[];
@@ -278,6 +280,8 @@ export interface MetricsPayload {
   cpu_usage_percent: number;
   memory_bytes_used: number;
   disk_bytes_used: number;
+  network_rx_bytes?: number;
+  network_tx_bytes?: number;
 }
 
 export interface StatusPayload {

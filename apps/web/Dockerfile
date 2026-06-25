@@ -1,7 +1,8 @@
+# syntax=docker/dockerfile:1
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json* ./
-RUN npm ci || npm install
+RUN --mount=type=cache,target=/root/.npm npm ci || npm install
 
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -10,7 +11,7 @@ COPY apps/web/ ./
 ARG API_URL=http://api:8080
 ENV API_URL=$API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

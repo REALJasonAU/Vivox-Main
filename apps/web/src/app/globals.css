@@ -550,7 +550,7 @@ textarea:focus {
   animation: play-ripple 0.5s ease-out;
 }
 .animate-stop-implode {
-  animation: stop-implode 0.3s ease-in forwards;
+  animation: stop-implode 0.3s ease-in;
 }
 .animate-page-enter {
   animation: page-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;

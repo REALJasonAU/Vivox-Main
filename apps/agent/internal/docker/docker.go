@@ -10,6 +10,7 @@
 package docker
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -47,7 +48,7 @@ const (
 // *client.Sender satisfies it.
 type Sink interface {
 	SendLog(serviceID string, data []byte, streamType string) error
-	SendMetric(serviceID string, cpuPercent float64, memBytes uint64) error
+	SendMetric(serviceID string, sample metrics.Sample) error
 	SendHealthCheck(serviceID string, healthy bool, statusCode int, latencyMs int64, errMsg string, intervalSec int32) error
 }
 
@@ -315,7 +316,14 @@ func (m *Manager) track(serviceID, containerID string, startTask *gen.StartServi
 		}
 		return stats.Body, nil
 	}
-	go metrics.Poll(pumpCtx, serviceID, m.metricsInterval, opener, m.sink)
+	diskReader := func(ctx context.Context) (uint64, bool) {
+		n, err := m.measureDataDirBytes(ctx, containerID)
+		if err != nil {
+			return 0, false
+		}
+		return n, true
+	}
+	go metrics.Poll(pumpCtx, serviceID, m.metricsInterval, opener, diskReader, m.sink)
 
 	if startTask != nil && startTask.GetHealthPath() != "" && startTask.GetHealthPort() > 0 {
 		go m.startHealthChecker(pumpCtx, serviceID, containerID, startTask)
@@ -482,4 +490,31 @@ func mergeEnv(existing []string, updates map[string]string) []string {
 		merged[k] = v
 	}
 	return envSlice(merged)
+}
+
+// measureDataDirBytes runs du inside the container against /mnt/server.
+func (m *Manager) measureDataDirBytes(ctx context.Context, containerID string) (uint64, error) {
+	execResp, err := m.cli.ContainerExecCreate(ctx, containerID, container.ExecOptions{
+		Cmd:          []string{"du", "-sb", "/mnt/server"},
+		AttachStdout: true,
+		AttachStderr: false,
+	})
+	if err != nil {
+		return 0, err
+	}
+	attach, err := m.cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+	if err != nil {
+		return 0, err
+	}
+	defer attach.Close()
+
+	sc := bufio.NewScanner(attach.Reader)
+	if !sc.Scan() {
+		return 0, fmt.Errorf("du produced no output")
+	}
+	fields := strings.Fields(sc.Text())
+	if len(fields) == 0 {
+		return 0, fmt.Errorf("parse du output")
+	}
+	return strconv.ParseUint(fields[0], 10, 64)
 }

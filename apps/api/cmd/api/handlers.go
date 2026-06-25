@@ -56,6 +56,7 @@ type serviceView struct {
 	Type           string                `json:"type"`
 	Status         string                `json:"status"`
 	NodeID         string                `json:"node_id,omitempty"`
+	NodeHost       string                `json:"node_host,omitempty"`
 	ResourceLimits domain.ResourceLimits `json:"resource_limits"`
 	Config         domain.ServiceConfig  `json:"config"`
 	Tags           []string              `json:"tags"`
@@ -206,7 +207,7 @@ func (a *api) listServices(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(viewServices(rows))
+	return c.JSON(a.viewServices(c.UserContext(), rows))
 }
 
 func (a *api) listAllServices(c *fiber.Ctx) error {
@@ -214,7 +215,7 @@ func (a *api) listAllServices(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(viewServices(rows))
+	return c.JSON(a.viewServices(c.UserContext(), rows))
 }
 
 func (a *api) getService(c *fiber.Ctx) error {
@@ -222,12 +223,13 @@ func (a *api) getService(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(toServiceView(svc))
+	return c.JSON(toServiceViewWithNode(c.UserContext(), a.q, svc))
 }
 
 func (a *api) startService(c *fiber.Ctx) error   { return a.control(c, a.mgr.StartService) }
-func (a *api) stopService(c *fiber.Ctx) error    { return a.control(c, a.mgr.StopService) }
-func (a *api) restartService(c *fiber.Ctx) error { return a.control(c, a.mgr.RestartService) }
+func (a *api) stopService(c *fiber.Ctx) error       { return a.control(c, a.mgr.StopService) }
+func (a *api) forceStopService(c *fiber.Ctx) error  { return a.control(c, a.mgr.ForceStopService) }
+func (a *api) restartService(c *fiber.Ctx) error    { return a.control(c, a.mgr.RestartService) }
 
 // control runs an ownership check then invokes a Manager action, mapping domain
 // errors to HTTP status codes.
@@ -261,7 +263,14 @@ func (a *api) updateServiceEnv(c *fiber.Ctx) error {
 		return err
 	}
 	cfg := svc.Config
-	cfg.Environment = req.Environment
+	env := req.Environment
+	if env == nil {
+		env = make(map[string]string)
+	}
+	if tmpl := service.FindTemplateForConfig(a.mgr.Templates(), cfg); tmpl != nil {
+		env = service.MergeTemplateEnvironment(tmpl, env)
+	}
+	cfg.Environment = env
 	updated, err := a.q.UpdateServiceConfig(c.UserContext(), db.UpdateServiceConfigParams{
 		ID:             svc.ID,
 		ResourceLimits: svc.ResourceLimits,
@@ -434,7 +443,7 @@ func (a *api) listNodeServices(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(viewServices(rows))
+	return c.JSON(a.viewServices(c.UserContext(), rows))
 }
 
 func (a *api) rotateNodeToken(c *fiber.Ctx) error {
@@ -649,10 +658,48 @@ func (a *api) resolveNode(c *fiber.Ctx, explicit, region string, limits domain.R
 	return pgtype.UUID{}
 }
 
-func viewServices(rows []db.Service) []serviceView {
+func toServiceViewWithNode(ctx context.Context, q *db.Queries, s db.Service) serviceView {
+	v := toServiceView(s)
+	if s.NodeID.Valid {
+		if host, ok := lookupNodeHost(ctx, q, s.NodeID, nil); ok {
+			v.NodeHost = host
+		}
+	}
+	return v
+}
+
+func lookupNodeHost(ctx context.Context, q *db.Queries, nodeID pgtype.UUID, cache map[string]string) (string, bool) {
+	key := service.UUIDString(nodeID)
+	if cache != nil {
+		if host, ok := cache[key]; ok {
+			return host, host != ""
+		}
+	}
+	n, err := q.GetNode(ctx, nodeID)
+	if err != nil {
+		if cache != nil {
+			cache[key] = ""
+		}
+		return "", false
+	}
+	host := strings.TrimSpace(n.Name)
+	if cache != nil {
+		cache[key] = host
+	}
+	return host, host != ""
+}
+
+func (a *api) viewServices(ctx context.Context, rows []db.Service) []serviceView {
 	out := make([]serviceView, 0, len(rows))
+	cache := make(map[string]string)
 	for _, s := range rows {
-		out = append(out, toServiceView(s))
+		v := toServiceView(s)
+		if s.NodeID.Valid {
+			if host, ok := lookupNodeHost(ctx, a.q, s.NodeID, cache); ok {
+				v.NodeHost = host
+			}
+		}
+		out = append(out, v)
 	}
 	return out
 }

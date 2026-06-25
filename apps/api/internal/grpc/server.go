@@ -194,21 +194,42 @@ func (s *Server) handleHeartbeat(ctx context.Context, nodeID pgtype.UUID, hb *ge
 	if info == nil {
 		return nil
 	}
-	cap := domain.NodeCapacity{
+	incoming := domain.NodeCapacity{
 		CPUCores: info.GetCpuCores(),
 		RAMMb:    info.GetRamMb(),
 		DiskGb:   info.GetDiskGb(),
 	}
-	if cap.CPUCores == 0 && cap.RAMMb == 0 && cap.DiskGb == 0 {
+	if incoming.CPUCores == 0 && incoming.RAMMb == 0 && incoming.DiskGb == 0 {
 		return nil
 	}
-	if _, err := s.q.UpdateNodeCapacity(ctx, db.UpdateNodeCapacityParams{ID: nodeID, Capacity: cap}); err != nil {
+	existing := domain.NodeCapacity{}
+	if node, err := s.q.GetNode(ctx, nodeID); err == nil {
+		existing = node.Capacity
+	}
+	merged := mergeNodeCapacity(existing, incoming)
+	if _, err := s.q.UpdateNodeCapacity(ctx, db.UpdateNodeCapacityParams{ID: nodeID, Capacity: merged}); err != nil {
 		s.log.Warn("update node capacity failed", "node_id", uuidString(nodeID), "err", err)
 	}
 	if s.publisher != nil {
-		_ = s.publisher.PublishNodeStatus(ctx, uuidString(nodeID), "online", cap.CPUCores, cap.RAMMb, cap.DiskGb)
+		_ = s.publisher.PublishNodeStatus(ctx, uuidString(nodeID), "online", merged.CPUCores, merged.RAMMb, merged.DiskGb)
 	}
 	return nil
+}
+
+// mergeNodeCapacity keeps existing non-zero fields when the agent reports zero
+// for a metric (partial detection failure).
+func mergeNodeCapacity(existing, incoming domain.NodeCapacity) domain.NodeCapacity {
+	out := existing
+	if incoming.CPUCores > 0 {
+		out.CPUCores = incoming.CPUCores
+	}
+	if incoming.RAMMb > 0 {
+		out.RAMMb = incoming.RAMMb
+	}
+	if incoming.DiskGb > 0 {
+		out.DiskGb = incoming.DiskGb
+	}
+	return out
 }
 
 // ingestLog appends a LogChunk to console:{service_id} and persists history.
@@ -263,10 +284,12 @@ func (s *Server) ingestMetric(ctx context.Context, m *gen.MetricSnapshot) error 
 		MaxLen: streamMaxLen,
 		Approx: true,
 		Values: map[string]interface{}{
-			"cpu":  m.GetCpuUsagePercent(),
-			"mem":  m.GetMemoryBytesUsed(),
-			"disk": m.GetDiskBytesUsed(),
-			"ts":   time.Now().Unix(),
+			"cpu":     m.GetCpuUsagePercent(),
+			"mem":     m.GetMemoryBytesUsed(),
+			"disk":    m.GetDiskBytesUsed(),
+			"net_rx":  m.GetNetworkRxBytes(),
+			"net_tx":  m.GetNetworkTxBytes(),
+			"ts":      time.Now().Unix(),
 		},
 	}).Err(); err != nil {
 		return err
@@ -275,8 +298,11 @@ func (s *Server) ingestMetric(ctx context.Context, m *gen.MetricSnapshot) error 
 	histKey := "metrics:hist:" + m.GetServiceId()
 	score := float64(time.Now().UnixMilli())
 	payload, _ := json.Marshal(map[string]interface{}{
-		"cpu": m.GetCpuUsagePercent(),
-		"mem": m.GetMemoryBytesUsed(),
+		"cpu":    m.GetCpuUsagePercent(),
+		"mem":    m.GetMemoryBytesUsed(),
+		"disk":   m.GetDiskBytesUsed(),
+		"net_rx": m.GetNetworkRxBytes(),
+		"net_tx": m.GetNetworkTxBytes(),
 	})
 	if err := s.rdb.ZAdd(ctx, histKey, redis.Z{Score: score, Member: string(payload)}).Err(); err != nil {
 		return err

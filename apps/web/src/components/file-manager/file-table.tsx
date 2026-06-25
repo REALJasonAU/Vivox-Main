@@ -22,6 +22,10 @@ export function FileTable({
   onToggleSelectAll,
   onNavigateDir,
   onOpenFile,
+  dropTargetPath,
+  onDropTarget,
+  onUploadToPath,
+  onMoveFile,
 }: {
   currentPath: string;
   entries: FileEntry[];
@@ -33,8 +37,26 @@ export function FileTable({
   onToggleSelectAll: () => void;
   onNavigateDir: (path: string) => void;
   onOpenFile: (path: string) => void;
+  dropTargetPath?: string | null;
+  onDropTarget?: (path: string | null) => void;
+  onUploadToPath?: (targetPath: string, files: FileList) => void | Promise<void>;
+  onMoveFile?: (fromPath: string, toDir: string) => void | Promise<void>;
 }) {
   const segments = pathSegments(currentPath);
+
+  const handleRowDrop = (targetDir: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDropTarget?.(null);
+    const internal = e.dataTransfer.getData("application/x-vivox-file-path");
+    if (internal && onMoveFile) {
+      void onMoveFile(internal, targetDir);
+      return;
+    }
+    if (e.dataTransfer.files?.length && onUploadToPath) {
+      void onUploadToPath(targetDir, e.dataTransfer.files);
+    }
+  };
 
   if (loading) {
     return (
@@ -47,7 +69,16 @@ export function FileTable({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div
+      className="flex-1 overflow-y-auto"
+      onDragOver={(e) => {
+        if (!onUploadToPath && !onMoveFile) return;
+        e.preventDefault();
+        onDropTarget?.(currentPath);
+      }}
+      onDragLeave={() => onDropTarget?.(null)}
+      onDrop={(e) => handleRowDrop(currentPath, e)}
+    >
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 border-b border-border bg-surface text-xs text-muted">
           <tr>
@@ -76,6 +107,22 @@ export function FileTable({
                     : `${SERVER_ROOT}/${segments.slice(0, -1).join("/")}`;
                 onNavigateDir(parent);
               }}
+              onDragOver={(e) => {
+                if (!onUploadToPath && !onMoveFile) return;
+                e.preventDefault();
+                const parent =
+                  segments.length <= 1
+                    ? SERVER_ROOT
+                    : `${SERVER_ROOT}/${segments.slice(0, -1).join("/")}`;
+                onDropTarget?.(parent);
+              }}
+              onDrop={(e) => {
+                const parent =
+                  segments.length <= 1
+                    ? SERVER_ROOT
+                    : `${SERVER_ROOT}/${segments.slice(0, -1).join("/")}`;
+                handleRowDrop(parent, e);
+              }}
             >
               <td className="px-3 py-2" />
               <td className="px-1 py-2" />
@@ -98,13 +145,34 @@ export function FileTable({
             entries.map((entry) => {
               const fullPath = joinPath(currentPath, entry.name);
               const fav = isFavorite(fullPath);
+              const isDropTarget = entry.is_dir && dropTargetPath === fullPath;
               return (
                 <tr
                   key={entry.name}
-                  className="cursor-pointer border-b border-border/50 hover:bg-surface-raised/50"
+                  draggable={!entry.is_dir && !!onMoveFile}
+                  onDragStart={(e) => {
+                    if (entry.is_dir || !onMoveFile) return;
+                    e.dataTransfer.setData("application/x-vivox-file-path", fullPath);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  className={cn(
+                    "cursor-pointer border-b border-border/50 hover:bg-surface-raised/50",
+                    isDropTarget && "bg-vivox-500/10 ring-1 ring-inset ring-vivox-400/40",
+                  )}
                   onClick={() => {
                     if (entry.is_dir) onNavigateDir(fullPath);
                     else onOpenFile(fullPath);
+                  }}
+                  onDragOver={(e) => {
+                    if (!entry.is_dir || (!onUploadToPath && !onMoveFile)) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDropTarget?.(fullPath);
+                  }}
+                  onDragLeave={() => onDropTarget?.(null)}
+                  onDrop={(e) => {
+                    if (!entry.is_dir) return;
+                    handleRowDrop(fullPath, e);
                   }}
                 >
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
@@ -131,13 +199,11 @@ export function FileTable({
                       {entry.name}
                     </span>
                   </td>
-                  <td className="hidden px-3 py-2 text-right text-xs text-muted sm:table-cell">
-                    {entry.is_dir ? "—" : formatBytes(entry.size)}
+                  <td className="hidden px-3 py-2 text-right text-muted sm:table-cell">
+                    {entry.is_dir ? "—" : formatBytes(entry.size ?? 0)}
                   </td>
-                  <td className="hidden px-3 py-2 text-right text-xs text-muted md:table-cell">
-                    {entry.modified
-                      ? formatRelativeTime(new Date(Number(entry.modified) * 1000))
-                      : "—"}
+                  <td className="hidden px-3 py-2 text-right text-muted md:table-cell">
+                    {entry.modified_at ? formatRelativeTime(entry.modified_at) : "—"}
                   </td>
                 </tr>
               );

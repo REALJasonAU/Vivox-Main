@@ -17,6 +17,7 @@ import (
 	"github.com/nexus-control/apps/agent/internal/exec"
 	"github.com/nexus-control/apps/agent/internal/files"
 	"github.com/nexus-control/apps/agent/internal/health"
+	"github.com/nexus-control/apps/agent/internal/metrics"
 	gen "github.com/nexus-control/packages/proto/gen"
 )
 
@@ -189,7 +190,7 @@ func envBool(key string) bool {
 
 type mockSink interface {
 	SendLog(serviceID string, data []byte, streamType string) error
-	SendMetric(serviceID string, cpuPercent float64, memBytes uint64) error
+	SendMetric(serviceID string, sample metrics.Sample) error
 }
 
 type mockHandler struct {
@@ -282,7 +283,13 @@ func (h *mockHandler) generate(ctx context.Context, serviceID, image string) {
 		case <-metricTick.C:
 			cpu := 5 + rand.Float64()*40
 			mem := uint64(256+rand.Intn(768)) * 1024 * 1024
-			_ = h.sink.SendMetric(serviceID, cpu, mem)
+			disk := uint64(1+rand.Intn(40)) * 1024 * 1024 * 1024
+			netRx := uint64(rand.Intn(1000000))
+			netTx := uint64(rand.Intn(500000))
+			_ = h.sink.SendMetric(serviceID, metrics.Sample{
+				CPU: cpu, MemBytes: mem, DiskBytes: disk,
+				NetRxBytes: netRx, NetTxBytes: netTx,
+			})
 		}
 	}
 }

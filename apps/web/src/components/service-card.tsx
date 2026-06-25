@@ -3,19 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronRight, Clock, Container, Database, Gamepad2, Globe } from "lucide-react";
-import type { MetricsPayload, Service, ServiceStatus, ServiceType, StatusPayload } from "@/lib/types";
+import { ChevronRight, Clock } from "lucide-react";
+import type { MetricsPayload, Service, ServiceStatus, StatusPayload } from "@/lib/types";
 import { isTransient } from "@/lib/status";
 import { useTopic } from "@/hooks/useWebSocket";
 import { StatusBadge } from "./status-badge";
+import { ConnectAddress } from "@/components/connect-address";
+import { getServiceKindLabel, ServiceIconBadge } from "@/components/service-type-icon";
 import { cn, formatBytes } from "@/lib/utils";
-
-const TYPE_META: Record<ServiceType, { icon: typeof Container; label: string }> = {
-  game: { icon: Gamepad2, label: "Game Server" },
-  docker: { icon: Container, label: "Docker App" },
-  database: { icon: Database, label: "Database" },
-  static: { icon: Globe, label: "Static Site" },
-};
 
 function MetricBar({ label, value, percent }: { label: string; value: string; percent: number }) {
   return (
@@ -46,8 +41,7 @@ function uptimeStr(updatedAt: string): string {
 }
 
 export function ServiceCard({ service }: { service: Service }) {
-  const meta = TYPE_META[service.type];
-  const Icon = meta.icon;
+  const kindLabel = getServiceKindLabel(service);
 
   const [status, setStatus] = useState<ServiceStatus>(service.status);
   const [metrics, setMetrics] = useState<{ cpu: number; mem: number } | null>(null);
@@ -94,12 +88,11 @@ export function ServiceCard({ service }: { service: Service }) {
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-xl border border-border bg-surface-raised">
-            <Icon className="size-5 text-vivox-400" />
-          </span>
+          <ServiceIconBadge service={service} />
           <div className="min-w-0">
             <h3 className="truncate font-medium tracking-tight text-foreground">{service.name}</h3>
-            <p className="text-xs uppercase tracking-wider text-muted">{meta.label}</p>
+            <p className="text-xs uppercase tracking-wider text-muted">{kindLabel}</p>
+            <ConnectAddress service={service} className="relative z-20 mt-1.5" />
             {service.tags && service.tags.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {service.tags.slice(0, 3).map((tag) => (
@@ -127,9 +120,6 @@ export function ServiceCard({ service }: { service: Service }) {
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted">
         <div className="flex min-w-0 items-center gap-2">
-          {service.config.image && (
-            <span className="truncate font-mono text-muted">{service.config.image}</span>
-          )}
           {status === "RUNNING" && (
             <span className="inline-flex shrink-0 items-center gap-1 text-emerald-500/80">
               <Clock className="size-3" />

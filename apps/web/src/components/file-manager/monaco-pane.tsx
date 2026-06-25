@@ -17,7 +17,8 @@ export function MonacoPane({
   onChange?: (value: string) => void;
 }) {
   return (
-    <MonacoEditor
+    <div className="h-full min-h-0 flex-1">
+      <MonacoEditor
       height="100%"
       language={getLanguage(path)}
       value={content}
@@ -33,5 +34,6 @@ export function MonacoPane({
         wordWrap: "on",
       }}
     />
+    </div>
   );
 }

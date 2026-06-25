@@ -192,6 +192,109 @@ func (t *Template) ResourceLimits() domain.ResourceLimits {
 	}
 }
 
+// MergeTemplateEnvironment adds missing keys from tmpl.Env and configurable field
+// defaults without overwriting existing values in env.
+func MergeTemplateEnvironment(tmpl *Template, env map[string]string) map[string]string {
+	if tmpl == nil {
+		return env
+	}
+	out := make(map[string]string, len(env)+len(tmpl.Env)+len(tmpl.Configurable))
+	for k, v := range env {
+		out[k] = v
+	}
+	for _, f := range tmpl.Configurable {
+		if f.Env == "" {
+			continue
+		}
+		if _, ok := out[f.Env]; !ok {
+			out[f.Env] = f.Default
+		}
+	}
+	for k, v := range tmpl.Env {
+		if _, ok := out[k]; !ok {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func hasRustEnvMarkers(env map[string]string) bool {
+	if env == nil {
+		return false
+	}
+	for _, k := range []string{"RCON_PASS", "RCON_PORT", "QUERY_PORT", "SERVER_IDENTITY", "DOWNLOAD_METHOD"} {
+		if _, ok := env[k]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMinecraftEnvMarkers(env map[string]string) bool {
+	if env == nil {
+		return false
+	}
+	for _, k := range []string{"MC_VERSION", "MEMORY", "MOTD", "JVM_FLAGS"} {
+		if _, ok := env[k]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func imageMatchesTemplate(image, templateImage string) bool {
+	if image == "" || templateImage == "" {
+		return false
+	}
+	if strings.EqualFold(image, templateImage) {
+		return true
+	}
+	img := strings.ToLower(image)
+	ti := strings.ToLower(templateImage)
+	imgBase := strings.Split(img, ":")[0]
+	tiBase := strings.Split(ti, ":")[0]
+	return strings.Contains(img, tiBase) || strings.Contains(ti, imgBase)
+}
+
+// FindTemplateForConfig matches a persisted service config to a loaded template
+// by container image or known game environment markers.
+func FindTemplateForConfig(reg map[string]*Template, cfg domain.ServiceConfig) *Template {
+	if len(reg) == 0 {
+		return nil
+	}
+	for _, t := range reg {
+		if imageMatchesTemplate(cfg.Image, t.Image) {
+			return t
+		}
+	}
+	env := cfg.Environment
+	if hasRustEnvMarkers(env) {
+		if t, ok := reg["rust"]; ok {
+			return t
+		}
+	}
+	if hasMinecraftEnvMarkers(env) && !hasRustEnvMarkers(env) {
+		if t, ok := reg["minecraft"]; ok {
+			return t
+		}
+	}
+	if env != nil {
+		if fw, ok := env["FRAMEWORK"]; ok {
+			switch strings.ToLower(fw) {
+			case "oxide", "carbon", "carbon-minimal":
+				if t, ok := reg["rust"]; ok {
+					return t
+				}
+			case "paper", "purpur", "vanilla", "fabric", "forge", "neoforge", "quilt", "mohist", "arclight":
+				if t, ok := reg["minecraft"]; ok {
+					return t
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // List returns the templates sorted by id for stable API output.
 func List(reg map[string]*Template) []*Template {
 	ids := make([]string, 0, len(reg))

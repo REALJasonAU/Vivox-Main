@@ -62,7 +62,7 @@ export default function AdminNodesPage() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <MetricCard label="Total nodes" value={String(nodes.length)} />
           <MetricCard label="Online" value={String(metrics.online)} accent="emerald" />
-          <MetricCard label="Services" value={String(metrics.totalServices)} />
+          <MetricCard label="Servers" value={String(metrics.totalServices)} />
           <MetricCard label="Avg CPU" value={`${metrics.avgCpu}%`} />
         </div>
       )}
@@ -97,7 +97,7 @@ export default function AdminNodesPage() {
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">CPU</th>
                 <th className="px-4 py-3 font-medium">Memory</th>
-                <th className="hidden px-4 py-3 font-medium sm:table-cell">Services</th>
+                <th className="hidden px-4 py-3 font-medium sm:table-cell">Servers</th>
                 <th className="hidden px-4 py-3 font-medium lg:table-cell">Last seen</th>
               </tr>
             </thead>

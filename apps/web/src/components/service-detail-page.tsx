@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { ArrowLeft, Save, Globe, X, Download } from "lucide-react";
+import { ArrowLeft, Globe, X, Download } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import { useTopic } from "@/hooks/useWebSocket";
@@ -19,8 +19,7 @@ import { ScheduleTab } from "@/components/schedule-tab";
 import { LogsFeed } from "@/components/logs-feed";
 import { MetricsChart } from "@/components/metrics-chart";
 import { HealthIndicator } from "@/components/health-indicator";
-import { AlertsSection } from "@/components/alerts-section";
-import { MinecraftSwitcher } from "@/components/minecraft-switcher";
+import { MinecraftFrameworkPicker } from "@/components/minecraft-switcher";
 import { PluginManager } from "@/components/plugin-manager";
 import { RustPluginManager } from "@/components/rust-plugin-manager";
 import { ServerCfgEditor } from "@/components/server-cfg-editor";
@@ -42,14 +41,16 @@ import {
   showRustPluginTab,
 } from "@/lib/game-service";
 import {
+  formatCpuLimit,
+  formatMemoryLimit,
+  formatStorageLimit,
+} from "@/lib/allocations";
+import {
   absoluteToFileRel,
   buildServicePath,
   fileRelToAbsolute,
   parseServiceRoute,
 } from "@/lib/service-routes";
-
-const inputClass =
-  "rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus focus:ring-1 focus:ring-border-focus";
 
 export function ServiceDetailPage({
   serviceId,
@@ -94,10 +95,6 @@ export function ServiceDetailPage({
     ? fileRelToAbsolute(route.selectedFileRel)
     : undefined;
 
-  const tabIndex = tabs.indexOf(tab);
-  const directionRef = useRef(1);
-  const direction = directionRef.current;
-
   useEffect(() => {
     if (data) setService(data);
   }, [data]);
@@ -122,8 +119,6 @@ export function ServiceDetailPage({
   });
 
   const navigateTab = (nextTab: string) => {
-    const next = tabs.indexOf(nextTab);
-    directionRef.current = next >= tabIndex ? 1 : -1;
     router.push(buildServicePath(serviceId, nextTab));
   };
 
@@ -155,7 +150,7 @@ export function ServiceDetailPage({
     return (
       <div className="flex flex-col gap-4">
         <BackLink />
-        <ErrorBanner message={`Could not load service (${error}).`} />
+        <ErrorBanner message={`Could not load server (${error}).`} />
       </div>
     );
   }
@@ -179,60 +174,67 @@ export function ServiceDetailPage({
 
       <TabBar tabs={tabs} tab={tab} onChange={navigateTab} />
 
-      <AnimatePresence mode="wait" custom={direction}>
-        <motion.div
-          key={tab}
-          custom={direction}
-          initial={{ opacity: 0, x: direction * 14 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: direction * -10 }}
-          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+      <div className="relative">
+        <div
+          className={cn(
+            "transition-opacity duration-150",
+            tab === "Overview" ? "opacity-100" : "hidden opacity-0",
+          )}
         >
-          <div className={tab === "Console" ? undefined : "hidden"}>
-            <Console serviceId={service.id} active={tab === "Console"} initialStatus={service.status} />
+          <OverviewTab service={service} />
+        </div>
+        <div className={tab === "Console" ? undefined : "hidden"}>
+          <Console serviceId={service.id} active={tab === "Console"} initialStatus={service.status} />
+        </div>
+        <div className={tab === "Files" ? undefined : "hidden"}>
+          <FileManager
+            serviceId={service.id}
+            initialDirRel={fileDirRel}
+            initialSelectedFile={selectedFileAbs}
+            onPathChange={navigateFiles}
+          />
+        </div>
+        {isRustGame(service) && (
+          <div className={tab === "CFG Editor" ? undefined : "hidden"}>
+            <ServerCfgEditor service={service} />
           </div>
-          <div className={tab === "Files" ? undefined : "hidden"}>
-            <FileManager
-              serviceId={service.id}
-              initialDirRel={fileDirRel}
-              initialSelectedFile={selectedFileAbs}
-              onPathChange={navigateFiles}
-            />
+        )}
+        {isMinecraftGame(service) && (
+          <div className={tab === "Properties" ? undefined : "hidden"}>
+            <ServerPropertiesEditor service={service} />
           </div>
-          {isRustGame(service) && (
-            <div className={tab === "CFG Editor" ? undefined : "hidden"}>
-              <ServerCfgEditor service={service} />
-            </div>
-          )}
-          {isMinecraftGame(service) && (
-            <div className={tab === "Properties" ? undefined : "hidden"}>
-              <ServerPropertiesEditor service={service} />
-            </div>
-          )}
-          {showRustPluginTab(service) && pluginTab && (
-            <div className={tab === pluginTab ? undefined : "hidden"}>
-              <RustPluginManager service={service} />
-            </div>
-          )}
-          {showMcPluginTab(service) && pluginTab && (
-            <div className={tab === pluginTab ? undefined : "hidden"}>
-              <PluginManager service={service} />
-            </div>
-          )}
-          {tab === "Overview" && <OverviewTab service={service} refetch={refetch} />}
-          {tab === "Schedule" && <ScheduleTab serviceId={service.id} />}
-          {tab === "Backups" && <BackupsTab serviceId={service.id} />}
-          {tab === "Startup" && <StartupTab service={service} onChanged={setService} />}
-          {tab === "Logs" && <LogsFeed serviceId={service.id} />}
-          {tab === "Settings" && (
-            <SettingsTab
-              service={service}
-              onChanged={setService}
-              showDomains={!isMinecraftGame(service) && !isRustGame(service)}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
+        )}
+        {showRustPluginTab(service) && pluginTab && (
+          <div className={tab === pluginTab ? undefined : "hidden"}>
+            <RustPluginManager service={service} />
+          </div>
+        )}
+        {showMcPluginTab(service) && pluginTab && (
+          <div className={tab === pluginTab ? undefined : "hidden"}>
+            <PluginManager service={service} />
+          </div>
+        )}
+        <div className={tab === "Schedule" ? undefined : "hidden"}>
+          <ScheduleTab serviceId={service.id} />
+        </div>
+        <div className={tab === "Backups" ? undefined : "hidden"}>
+          <BackupsTab serviceId={service.id} />
+        </div>
+        <div className={tab === "Startup" ? undefined : "hidden"}>
+          <StartupTab service={service} onChanged={setService} />
+        </div>
+        <div className={tab === "Logs" ? undefined : "hidden"}>
+          <LogsFeed serviceId={service.id} />
+        </div>
+        <div className={tab === "Settings" ? undefined : "hidden"}>
+          <SettingsTab
+            service={service}
+            onChanged={setService}
+            onSwitched={() => void refetch()}
+            showDomains={!isMinecraftGame(service) && !isRustGame(service)}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -243,7 +245,7 @@ function BackLink() {
       href="/dashboard"
       className="inline-flex w-fit items-center gap-1.5 text-sm text-muted transition-all duration-200 hover:text-foreground"
     >
-      <ArrowLeft className="size-4" /> Back to services
+      <ArrowLeft className="size-4" /> Back to servers
     </Link>
   );
 }
@@ -279,22 +281,26 @@ function TabBar({
   );
 }
 
-function OverviewTab({ service, refetch }: { service: Service; refetch: () => void }) {
+function OverviewTab({ service }: { service: Service }) {
   const portItems = portsForDisplay(service.config);
 
   return (
     <div className="flex flex-col gap-4">
       <HealthIndicator serviceId={service.id} />
-      <MetricsChart serviceId={service.id} memoryLimitMb={service.resource_limits.memory_mb} />
-      <AlertsSection service={service} />
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-surface sm:grid-cols-2">
-        <Fact label="Memory limit" value={`${service.resource_limits.memory_mb} MB`} />
-        <Fact label="CPU shares" value={String(service.resource_limits.cpu_shares)} />
+      <MetricsChart
+        serviceId={service.id}
+        memoryLimitMb={service.resource_limits.memory_mb}
+        diskLimitGb={service.resource_limits.disk_gb}
+      />
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-border bg-surface sm:grid-cols-3">
+        <Fact label="Memory limit" value={formatMemoryLimit(service.resource_limits.memory_mb)} />
+        <Fact label="CPU limit" value={formatCpuLimit(service.resource_limits.cpu_shares)} />
+        <Fact
+          label="Storage limit"
+          value={formatStorageLimit(service.resource_limits.disk_gb)}
+        />
       </div>
       {portItems.length > 0 && <PortsOverview ports={portItems} />}
-      {service.type === "game" && isMinecraftGame(service) && (
-        <MinecraftSwitcher service={service} onSwitched={refetch} />
-      )}
     </div>
   );
 }
@@ -426,41 +432,16 @@ function Fact({ label, value }: { label: string; value: string }) {
 function SettingsTab({
   service,
   onChanged,
+  onSwitched,
   showDomains = true,
 }: {
   service: Service;
   onChanged: (s: Service) => void;
+  onSwitched?: () => void;
   showDomains?: boolean;
 }) {
-  const [editingImage, setEditingImage] = useState(false);
-  const [savingConfig, setSavingConfig] = useState(false);
   const [reinstalling, setReinstalling] = useState(false);
-  const [imageInput, setImageInput] = useState(service.config.image ?? "");
-  const [cmdInput, setCmdInput] = useState(service.config.startup_cmd ?? "");
   const locked = isTransient(service.status);
-
-  useEffect(() => {
-    setImageInput(service.config.image ?? "");
-    setCmdInput(service.config.startup_cmd ?? "");
-  }, [service.config.image, service.config.startup_cmd]);
-
-  const saveConfig = async () => {
-    if (!imageInput.trim()) return;
-    setSavingConfig(true);
-    try {
-      const updated = await servicesApi.updateConfig(service.id, {
-        image: imageInput.trim(),
-        startup_cmd: cmdInput.trim(),
-      });
-      onChanged(updated);
-      toast("Image & startup saved", "success");
-      setEditingImage(false);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Failed to save config", "error");
-    } finally {
-      setSavingConfig(false);
-    }
-  };
 
   const reinstall = async () => {
     if (!confirm("Reinstall wipes server files and reruns the install script. Continue?")) return;
@@ -479,62 +460,9 @@ function SettingsTab({
   return (
     <div className="flex flex-col gap-4">
       {showDomains && <DomainsSection service={service} />}
-      <div className="rounded-xl border border-border bg-surface p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-foreground">Image & startup</h3>
-          {!editingImage && (
-            <Button variant="ghost" size="sm" onClick={() => setEditingImage(true)} disabled={locked}>
-              Edit
-            </Button>
-          )}
-        </div>
-        {editingImage ? (
-          <>
-            <div className="mt-3 flex flex-col gap-3">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs uppercase tracking-wider text-muted">Docker image</span>
-                <input
-                  value={imageInput}
-                  onChange={(e) => setImageInput(e.target.value)}
-                  className={cn(inputClass, "h-10 w-full font-mono")}
-                  placeholder="nginx:latest"
-                />
-              </label>
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs uppercase tracking-wider text-muted">
-                  Startup command <span className="text-subtle">(optional)</span>
-                </span>
-                <input
-                  value={cmdInput}
-                  onChange={(e) => setCmdInput(e.target.value)}
-                  className={cn(inputClass, "h-10 w-full font-mono")}
-                  placeholder="./server.sh"
-                />
-              </label>
-            </div>
-            <p className="mt-2 text-xs text-muted">Changes apply on next restart.</p>
-            <div className="mt-3 flex items-center gap-2">
-              <Button
-                size="sm"
-                actionType="save"
-                onClick={() => void saveConfig()}
-                loading={savingConfig}
-                disabled={!imageInput.trim()}
-              >
-                <Save className="size-3.5" /> Save
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setEditingImage(false)}>
-                Cancel
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="mt-3 grid grid-cols-1 gap-3 font-mono text-sm sm:grid-cols-2">
-            <LimitField label="Docker image" value={service.config.image || "—"} />
-            <LimitField label="Startup cmd" value={service.config.startup_cmd || "default"} />
-          </div>
-        )}
-      </div>
+      {isMinecraftGame(service) && onSwitched && (
+        <MinecraftFrameworkPicker service={service} onSwitched={onSwitched} />
+      )}
 
       <div className="rounded-xl border border-border bg-surface p-5">
         <h3 className="text-sm font-medium text-foreground">Reinstall</h3>
@@ -553,15 +481,6 @@ function SettingsTab({
           <Download className="size-3.5" /> Reinstall server
         </Button>
       </div>
-    </div>
-  );
-}
-
-function LimitField({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-border bg-background/50 p-3">
-      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 text-base text-foreground">{value}</p>
     </div>
   );
 }

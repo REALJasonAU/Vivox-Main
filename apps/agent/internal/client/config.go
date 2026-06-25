@@ -27,6 +27,8 @@ type Config struct {
 
 	// HeartbeatInterval is how often a Heartbeat UpstreamEnvelope is emitted.
 	HeartbeatInterval time.Duration
+	// CapacityRefreshInterval is how often host RAM/disk are re-detected and reported.
+	CapacityRefreshInterval time.Duration
 	// MetricsInterval is how often container stats are sampled and reported.
 	MetricsInterval time.Duration
 
@@ -42,6 +44,9 @@ type Config struct {
 func (c Config) withDefaults() Config {
 	if c.HeartbeatInterval <= 0 {
 		c.HeartbeatInterval = 5 * time.Second
+	}
+	if c.CapacityRefreshInterval <= 0 {
+		c.CapacityRefreshInterval = 6 * time.Hour
 	}
 	if c.MetricsInterval <= 0 {
 		c.MetricsInterval = 5 * time.Second

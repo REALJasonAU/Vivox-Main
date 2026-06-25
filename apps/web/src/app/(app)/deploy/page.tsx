@@ -404,7 +404,7 @@ export default function DeployPage() {
           {step === 1 && template && (
             <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <Labeled label="Service name">
+                <Labeled label="Server name">
                   <input
                     autoFocus
                     value={name}

@@ -156,35 +156,48 @@ func (r *Runner) runOnce(ctx context.Context) (connected bool) {
 	return true
 }
 
-// heartbeatLoop emits a Heartbeat every HeartbeatInterval. A send failure means
-// the stream is dead and ends the session.
+// heartbeatLoop emits a Heartbeat every HeartbeatInterval. SystemInfo is sent
+// on connect and whenever capacity is re-detected (every CapacityRefreshInterval).
 func (r *Runner) heartbeatLoop(ctx context.Context) error {
 	ticker := time.NewTicker(r.cfg.HeartbeatInterval)
 	defer ticker.Stop()
+	refreshTicker := time.NewTicker(r.cfg.CapacityRefreshInterval)
+	defer refreshTicker.Stop()
 
-	var infoOnce sync.Once
+	var sysInfoMu sync.Mutex
 	var sysInfo *gen.SystemInfo
-	send := func() error {
+
+	collect := func() {
+		sysInfoMu.Lock()
+		sysInfo = system.CollectInfo()
+		sysInfoMu.Unlock()
+	}
+
+	send := func(includeInfo bool) error {
 		var info *gen.SystemInfo
-		infoOnce.Do(func() {
-			sysInfo = system.CollectInfo()
-		})
-		if sysInfo != nil {
+		if includeInfo {
+			sysInfoMu.Lock()
 			info = sysInfo
-			sysInfo = nil
+			sysInfoMu.Unlock()
 		}
 		return r.sender.SendHeartbeat("healthy", info)
 	}
 
-	if err := send(); err != nil {
+	collect()
+	if err := send(true); err != nil {
 		return err
 	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-refreshTicker.C:
+			collect()
+			if err := send(true); err != nil {
+				return err
+			}
 		case <-ticker.C:
-			if err := send(); err != nil {
+			if err := send(false); err != nil {
 				return err
 			}
 		}

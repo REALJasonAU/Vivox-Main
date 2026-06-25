@@ -174,7 +174,7 @@ export default function DashboardPage() {
 
       {error && (
         <ErrorBanner
-          message={`Could not load services (${error}). The control plane API may be offline.`}
+          message={`Could not load servers (${error}). The control plane API may be offline.`}
         />
       )}
 

@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Trash2 } from "lucide-react";
+import { AlertCircle, Trash2, X } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import type { Backup } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { NamePromptModal } from "@/components/ui/name-prompt-modal";
 import { Skeleton } from "@/components/ui/states";
 import { cn, formatBytes, formatRelativeTime } from "@/lib/utils";
 import { toast } from "@/hooks/useToast";
+import { pushNotif } from "@/lib/notifications";
 
 function BackupStatusDot({ status }: { status: Backup["status"] }) {
   const colors = {
@@ -26,18 +28,43 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
     () => servicesApi.listBackups(serviceId),
     [serviceId],
   );
-  const [creating, setCreating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [failureMsg, setFailureMsg] = useState<string | null>(null);
+  const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  const [dismissedFailed, setDismissedFailed] = useState<Set<string>>(() => new Set());
+  const notifiedFailedRef = useRef<Set<string>>(new Set());
 
-  const createBackup = async () => {
-    setCreating(true);
+  const list = backups ?? [];
+
+  useEffect(() => {
+    for (const b of list) {
+      if (b.status !== "failed" || notifiedFailedRef.current.has(b.id)) continue;
+      notifiedFailedRef.current.add(b.id);
+      pushNotif({
+        serviceId,
+        serviceName: displayNames[b.id] ?? `Backup ${b.id.slice(0, 8)}`,
+        kind: "deploy_fail",
+      });
+    }
+  }, [list, serviceId, displayNames]);
+
+  const visibleBackups = useMemo(
+    () => list.filter((b) => b.status !== "failed" || !dismissedFailed.has(b.id)),
+    [list, dismissedFailed],
+  );
+
+  const createBackup = async (name: string) => {
+    setConnecting(true);
     try {
-      await servicesApi.createBackup(serviceId);
-      toast("Backup started — check back in a moment", "info");
-      setTimeout(() => void refetch(), 3000);
+      const backup = await servicesApi.createBackup(serviceId);
+      setDisplayNames((prev) => ({ ...prev, [backup.id]: name }));
+      void refetch();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Backup failed", "error");
+      const msg = e instanceof Error ? e.message : "We couldn't start the backup. Please try again.";
+      setFailureMsg(msg);
     } finally {
-      setCreating(false);
+      setConnecting(false);
     }
   };
 
@@ -53,29 +80,76 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">Volume backups</h3>
-          <p className="mt-0.5 text-xs text-muted">
-            Snapshots of container data. Stored on the node at /var/lib/vivox/backups.
-          </p>
+      {showCreate && (
+        <NamePromptModal
+          title="Create backup"
+          label="Backup name"
+          placeholder="e.g. Before plugin update"
+          confirmLabel="Start backup"
+          onClose={() => setShowCreate(false)}
+          onConfirm={createBackup}
+        />
+      )}
+
+      {failureMsg && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setFailureMsg(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <AlertCircle className="size-5 shrink-0 text-red-400" />
+              <div>
+                <h3 className="text-sm font-medium text-foreground">Backup couldn&apos;t start</h3>
+                <p className="mt-1 text-sm text-muted">{failureMsg}</p>
+                <p className="mt-2 text-xs text-subtle">
+                  Sorry about that — please check the node is online and try again.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button size="sm" onClick={() => setFailureMsg(null)}>
+                OK
+              </Button>
+            </div>
+          </div>
         </div>
-        <Button size="sm" onClick={() => void createBackup()} loading={creating} actionType="upload">
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-foreground">Volume backups</h3>
+        <Button
+          size="sm"
+          onClick={() => setShowCreate(true)}
+          loading={connecting}
+          disabled={connecting}
+          actionType="upload"
+        >
           Create backup
         </Button>
       </div>
+
+      {connecting && (
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
+          <span className="size-2 animate-pulse rounded-full bg-amber-500" />
+          Connecting…
+        </div>
+      )}
 
       {loading ? (
         <Skeleton className="h-24" />
       ) : (
         <div className="flex flex-col gap-2">
-          {(backups ?? []).length === 0 ? (
+          {visibleBackups.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted">
               No backups yet
             </div>
           ) : (
             <AnimatePresence>
-              {(backups ?? []).map((b) => (
+              {visibleBackups.map((b) => (
                 <motion.div
                   key={b.id}
                   initial={{ opacity: 0, y: 8 }}
@@ -85,7 +159,9 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
                 >
                   <BackupStatusDot status={b.status} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-mono text-sm text-foreground">{b.id.slice(0, 8)}…</p>
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {displayNames[b.id] ?? `Backup ${b.id.slice(0, 8)}`}
+                    </p>
                     <p className="text-xs text-muted">
                       {formatRelativeTime(b.created_at)}
                       {b.size_bytes != null && ` · ${formatBytes(b.size_bytes)}`}
@@ -104,6 +180,18 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
                   >
                     {b.status}
                   </span>
+                  {b.status === "failed" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDismissedFailed((prev) => new Set(prev).add(b.id))
+                      }
+                      className="rounded p-1 text-muted hover:bg-surface-raised hover:text-foreground"
+                      aria-label="Dismiss failed backup"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => void deleteBackup(b.id)}

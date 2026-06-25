@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-control/apps/agent/internal/metrics"
 	gen "github.com/nexus-control/packages/proto/gen"
 )
 
@@ -93,14 +94,17 @@ func (s *Sender) SendLog(serviceID string, data []byte, streamType string) error
 }
 
 // SendMetric emits a MetricSnapshot frame. Implements the metrics package's
-// sink contract. diskBytes is reported as 0 in Phase 1 (not collected).
-func (s *Sender) SendMetric(serviceID string, cpuPercent float64, memBytes uint64) error {
+// sink contract.
+func (s *Sender) SendMetric(serviceID string, sample metrics.Sample) error {
 	return s.send(&gen.UpstreamEnvelope{
 		Payload: &gen.UpstreamEnvelope_Metrics{
 			Metrics: &gen.MetricSnapshot{
 				ServiceId:       serviceID,
-				CpuUsagePercent: cpuPercent,
-				MemoryBytesUsed: memBytes,
+				CpuUsagePercent: sample.CPU,
+				MemoryBytesUsed: sample.MemBytes,
+				DiskBytesUsed:   sample.DiskBytes,
+				NetworkRxBytes:  sample.NetRxBytes,
+				NetworkTxBytes:  sample.NetTxBytes,
 			},
 		},
 	})

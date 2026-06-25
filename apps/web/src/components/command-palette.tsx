@@ -125,23 +125,23 @@ export function CommandPalette({ open, onOpenChange }: Props) {
 
                 {contextServiceId && (
                   <Command.Group
-                    heading="Service actions"
+                    heading="Server actions"
                     className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                   >
                     <PaletteItem
                       icon={<Play className="size-4" />}
-                      label="Start service"
-                      onSelect={() => void runServiceAction("start", "Service started")}
+                      label="Start server"
+                      onSelect={() => void runServiceAction("start", "Server started")}
                     />
                     <PaletteItem
                       icon={<Square className="size-4" />}
-                      label="Stop service"
-                      onSelect={() => void runServiceAction("stop", "Service stopped")}
+                      label="Stop server"
+                      onSelect={() => void runServiceAction("stop", "Server stopped")}
                     />
                     <PaletteItem
                       icon={<RotateCcw className="size-4" />}
-                      label="Restart service"
-                      onSelect={() => void runServiceAction("restart", "Service restarted")}
+                      label="Restart server"
+                      onSelect={() => void runServiceAction("restart", "Server restarted")}
                     />
                   </Command.Group>
                 )}
@@ -168,7 +168,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                   />
                   <PaletteItem
                     icon={<Rocket className="size-4" />}
-                    label="Deploy a new service"
+                    label="Deploy a new server"
                     shortcut="G N"
                     onSelect={() => run(() => router.push("/deploy"))}
                   />
@@ -191,7 +191,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
 
                 {services.length > 0 && (
                   <Command.Group
-                    heading="Services"
+                    heading="Servers"
                     className="px-1 py-1 text-[11px] font-medium uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                   >
                     {services.map((svc) => (

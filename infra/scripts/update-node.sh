@@ -2,7 +2,7 @@
 # Vivox — node agent update (rebuild binary; optionally refresh credentials)
 #
 # bash update-node.sh
-# bash update-node.sh --token NEW_TOKEN --panel-url https://panel.example.com --node-id UUID
+# bash update-node.sh --token NEW_TOKEN --panel-url https://panel.example.com --node-id UUID [--control-addr HOST:9090]
 
 set -euo pipefail
 
@@ -31,8 +31,6 @@ SCRIPT_DIR="$(_vivox_bootstrap_script_dir "${BASH_SOURCE[0]}")"
 # shellcheck source=node-agent-lib.sh
 source "${SCRIPT_DIR}/node-agent-lib.sh"
 
-export PATH=$PATH:/usr/local/go/bin
-
 PANEL_URL=""
 AGENT_TOKEN=""
 NODE_ID=""
@@ -52,6 +50,8 @@ parse_flags() {
 
 parse_flags "$@"
 
+require_root
+
 if [[ ! -d "$AGENT_DIR" ]]; then
   echo "✗ No agent install found at ${AGENT_DIR}." >&2
   exit 1
@@ -66,10 +66,16 @@ fi
 
 config_changed=false
 if [[ "$CREDENTIALS_CLI" == true ]]; then
-  if apply_credentials_from_cli "$PANEL_URL" "$AGENT_TOKEN" "$NODE_ID" "$CONTROL_ADDR"; then
+  if apply_agent_config_overrides "$PANEL_URL" "$AGENT_TOKEN" "$NODE_ID" "$CONTROL_ADDR"; then
     config_changed=true
     echo "✓ Agent credentials updated in ${AGENT_ENV}"
   fi
+fi
+
+env_backup=""
+if [[ -f "$AGENT_ENV" && "$CREDENTIALS_CLI" != true ]]; then
+  env_backup="/tmp/vivox-agent-env-backup-$(date +%s)"
+  cp "$AGENT_ENV" "$env_backup"
 fi
 
 git fetch origin "$VIVOX_BRANCH"
@@ -78,16 +84,18 @@ REMOTE=$(git rev-parse "origin/$VIVOX_BRANCH")
 
 code_updated=false
 if [[ "$LOCAL" != "$REMOTE" ]]; then
-  if [[ -f "$AGENT_ENV" && "$CREDENTIALS_CLI" != true ]]; then
-    cp "$AGENT_ENV" "/tmp/vivox-agent-env-backup-$(date +%s)"
-  fi
   git pull origin "$VIVOX_BRANCH"
   code_updated=true
 fi
 
-# Re-apply credentials after git pull so a pre-pull backup never wins over CLI flags.
+if [[ -n "$env_backup" && -f "$env_backup" ]]; then
+  cp "$env_backup" "$AGENT_ENV"
+  chmod 600 "$AGENT_ENV"
+fi
+
+# Re-apply CLI overrides after git pull so flags always win over restored backup.
 if [[ "$CREDENTIALS_CLI" == true ]]; then
-  if apply_credentials_from_cli "$PANEL_URL" "$AGENT_TOKEN" "$NODE_ID" "$CONTROL_ADDR"; then
+  if apply_agent_config_overrides "$PANEL_URL" "$AGENT_TOKEN" "$NODE_ID" "$CONTROL_ADDR"; then
     config_changed=true
     echo "✓ Agent credentials applied"
   fi
@@ -99,7 +107,9 @@ if [[ "$code_updated" != true && "$config_changed" != true ]]; then
 fi
 
 if [[ "$code_updated" == true ]]; then
+  ensure_go
   CGO_ENABLED=0 go build -o /usr/local/bin/vivox-agent ./apps/agent/cmd/agent
+  chmod +x /usr/local/bin/vivox-agent
   echo "✓ Agent updated to $(git rev-parse --short HEAD)"
 fi
 
@@ -107,5 +117,7 @@ if [[ "$config_changed" == true || "$code_updated" == true ]]; then
   systemctl restart vivox-agent
   if [[ "$config_changed" == true ]]; then
     echo "✓ Agent restarted with new credentials"
+  elif [[ "$code_updated" == true ]]; then
+    echo "✓ Agent restarted"
   fi
 fi

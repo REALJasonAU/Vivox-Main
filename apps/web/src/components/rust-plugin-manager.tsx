@@ -40,6 +40,18 @@ const SOURCE_BADGE: Record<string, string> = {
 
 const PAGE_SIZE = 100;
 
+/** Survives tab unmount when service detail keeps plugin panel mounted via hidden. */
+const searchResultsCache = new Map<string, PluginResult[]>();
+const preloadedServices = new Set<string>();
+
+function cacheKey(serviceId: string, fw: string, src: RustSource, pg: number, q: string) {
+  return `${serviceId}:${fw}:${src}:${pg}:${q}`;
+}
+
+function preloadKey(serviceId: string, fw: string) {
+  return `${serviceId}:${fw}`;
+}
+
 function fmtDownloads(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
@@ -67,8 +79,6 @@ export function RustPluginManager({ service }: Props) {
 
   const [busyPlugins, setBusy] = useState<Record<string, string>>({});
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cacheRef = useRef<Map<string, PluginResult[]>>(new Map());
-  const preloadedRef = useRef(false);
 
   const loadInstalled = useCallback(async () => {
     setLoadingInstalled(true);
@@ -86,8 +96,8 @@ export function RustPluginManager({ service }: Props) {
 
   const doSearch = useCallback(
     async (q: string, src: RustSource, pg: number, immediate = false) => {
-      const cacheKey = `${src}:${pg}:${q}`;
-      const cached = cacheRef.current.get(cacheKey);
+      const key = cacheKey(service.id, fw, src, pg, q);
+      const cached = searchResultsCache.get(key);
       if (cached) {
         setSearchResults(cached);
         return;
@@ -104,7 +114,7 @@ export function RustPluginManager({ service }: Props) {
           page_size: PAGE_SIZE,
         });
         const results = data.results ?? [];
-        cacheRef.current.set(cacheKey, results);
+        searchResultsCache.set(key, results);
         setSearchResults(results);
       } catch {
         setSearchResults([]);
@@ -117,11 +127,16 @@ export function RustPluginManager({ service }: Props) {
   );
 
   useEffect(() => {
-    if (!preloadedRef.current) {
-      preloadedRef.current = true;
+    const pk = preloadKey(service.id, fw);
+    if (!preloadedServices.has(pk)) {
+      preloadedServices.add(pk);
       void doSearch("", "all", 0, true);
+      return;
     }
-  }, [doSearch]);
+    const key = cacheKey(service.id, fw, source, page, query);
+    const cached = searchResultsCache.get(key);
+    if (cached) setSearchResults(cached);
+  }, [service.id, fw, doSearch, source, page, query]);
 
   useEffect(() => {
     if (showInstalled) return;
@@ -313,8 +328,10 @@ export function RustPluginManager({ service }: Props) {
           >
             <div className="flex flex-col gap-2">
               {loadingInstalled ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="size-5 animate-spin text-muted" />
+                <div className="flex flex-col gap-2 py-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-xl border border-border bg-surface-raised/60" />
+                  ))}
                 </div>
               ) : filteredInstalled.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface py-10 text-center text-sm text-muted">
@@ -345,8 +362,10 @@ export function RustPluginManager({ service }: Props) {
       {!showInstalled && (
         <>
           {searching ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="size-5 animate-spin text-muted" />
+            <div className="flex flex-col gap-2 py-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-16 animate-pulse rounded-xl border border-border bg-surface-raised/50" />
+              ))}
             </div>
           ) : searchResults.length === 0 && query !== "" ? (
             <div className="rounded-xl border border-border bg-surface py-10 text-center text-sm text-muted">

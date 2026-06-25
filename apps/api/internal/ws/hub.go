@@ -346,6 +346,8 @@ func buildPayload(topic string, v map[string]interface{}) map[string]any {
 	out["cpu_usage_percent"] = asFloat(v["cpu"])
 	out["memory_bytes_used"] = asInt(v["mem"])
 	out["disk_bytes_used"] = asInt(v["disk"])
+	out["network_rx_bytes"] = asInt(v["net_rx"])
+	out["network_tx_bytes"] = asInt(v["net_tx"])
 	return out
 }
 

@@ -4,7 +4,8 @@
 # bash <(curl -fsSL .../install-node.sh) \
 #   --panel-url https://panel.example.com \
 #   --token TOKEN_HERE \
-#   --node-id NODE_UUID_HERE
+#   --node-id NODE_UUID_HERE \
+#   [--control-addr HOST:9090]
 
 set -euo pipefail
 
@@ -16,9 +17,6 @@ VIVOX_ENV_FILE="infra/prod/.env"
 
 AGENT_DIR="/opt/vivox-agent"
 AGENT_ENV="/etc/vivox-agent/agent.env"
-
-VIVOX_REPO_URL="https://github.com/REALJasonAU/Vivox-Main"
-VIVOX_BRANCH="main"
 
 _vivox_bootstrap_script_dir() {
   local script_path="${1:?}"
@@ -51,6 +49,7 @@ warn() { echo -e "${YELLOW}⚠${NC} $*"; }
 PANEL_URL=""
 AGENT_TOKEN=""
 NODE_ID=""
+CONTROL_ADDR=""
 
 require_root() {
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
@@ -62,9 +61,10 @@ require_root() {
 parse_flags() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --panel-url) PANEL_URL="$2"; shift 2 ;;
-      --token)     AGENT_TOKEN="$2"; shift 2 ;;
-      --node-id)   NODE_ID="$2"; shift 2 ;;
+      --panel-url)    PANEL_URL="$2"; shift 2 ;;
+      --token)        AGENT_TOKEN="$2"; shift 2 ;;
+      --node-id)      NODE_ID="$2"; shift 2 ;;
+      --control-addr) CONTROL_ADDR="$2"; shift 2 ;;
       *) err "Unknown flag: $1"; exit 1 ;;
     esac
   done
@@ -103,21 +103,9 @@ check_dependencies() {
   ensure_docker
 }
 
-ensure_go() {
-  if command -v go >/dev/null 2>&1; then
-    return 0
-  fi
-  echo "Go not found — installing Go 1.25.0..."
-  curl -fsSL https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o /tmp/go.tar.gz
-  tar -C /usr/local -xzf /tmp/go.tar.gz
-  rm -f /tmp/go.tar.gz
-  echo 'export PATH=$PATH:/usr/local/go/bin' >/etc/profile.d/go.sh
-  export PATH=$PATH:/usr/local/go/bin
-}
-
 build_agent() {
   cd "$AGENT_DIR"
-  export PATH=$PATH:/usr/local/go/bin
+  ensure_go
   CGO_ENABLED=0 go build -o /usr/local/bin/vivox-agent ./apps/agent/cmd/agent
   chmod +x /usr/local/bin/vivox-agent
 }
@@ -176,10 +164,9 @@ handle_existing_install() {
   # Non-interactive (curl | bash): apply credentials immediately.
   if [[ ! -t 0 ]]; then
     ok "Applying credentials from command line..."
-    bash "${AGENT_DIR}/infra/scripts/update-node.sh" \
-      --panel-url "$PANEL_URL" \
-      --token "$AGENT_TOKEN" \
-      --node-id "$NODE_ID"
+    update_args=(--panel-url "$PANEL_URL" --token "$AGENT_TOKEN" --node-id "$NODE_ID")
+    [[ -n "$CONTROL_ADDR" ]] && update_args+=(--control-addr "$CONTROL_ADDR")
+    bash "${AGENT_DIR}/infra/scripts/update-node.sh" "${update_args[@]}"
     exit 0
   fi
 
@@ -191,10 +178,9 @@ handle_existing_install() {
   read -r -p "Choice [1-3]: " choice
   case "${choice:-3}" in
     1)
-      bash "${AGENT_DIR}/infra/scripts/update-node.sh" \
-        --panel-url "$PANEL_URL" \
-        --token "$AGENT_TOKEN" \
-        --node-id "$NODE_ID"
+      update_args=(--panel-url "$PANEL_URL" --token "$AGENT_TOKEN" --node-id "$NODE_ID")
+      [[ -n "$CONTROL_ADDR" ]] && update_args+=(--control-addr "$CONTROL_ADDR")
+      bash "${AGENT_DIR}/infra/scripts/update-node.sh" "${update_args[@]}"
       exit 0
       ;;
     2)
@@ -227,7 +213,7 @@ main() {
   git clone --branch "$VIVOX_BRANCH" "$VIVOX_REPO_URL" "$AGENT_DIR"
 
   build_agent
-  write_agent_env "$PANEL_URL" "$NODE_ID" "$AGENT_TOKEN"
+  write_agent_env "$PANEL_URL" "$NODE_ID" "$AGENT_TOKEN" "$CONTROL_ADDR"
   install_agent_systemd
   install_agent_autoupdater
 
@@ -251,7 +237,7 @@ main() {
   echo "Useful commands:"
   echo "  Status    : systemctl status vivox-agent"
   echo "  Logs      : journalctl -u vivox-agent -f"
-  echo "  Update now: bash ${AGENT_DIR}/infra/scripts/update-node.sh --panel-url URL --token TOKEN --node-id UUID"
+  echo "  Update now: bash ${AGENT_DIR}/infra/scripts/update-node.sh --panel-url URL --token TOKEN --node-id UUID [--control-addr HOST:9090]"
   echo "  Uninstall : bash ${AGENT_DIR}/infra/scripts/uninstall-node.sh"
   echo ""
 }

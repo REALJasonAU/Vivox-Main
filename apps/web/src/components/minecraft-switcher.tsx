@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Gamepad2, AlertTriangle, ChevronRight, RefreshCcw, Package, Cpu, ShieldAlert } from "lucide-react";
+import {
+  Gamepad2,
+  AlertTriangle,
+  ChevronRight,
+  RefreshCcw,
+  Package,
+  Cpu,
+  ShieldAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/useToast";
@@ -127,7 +135,6 @@ function getCompatWarning(from: string, to: string): string | null {
   }
   if (fromFw.category === "mods" && toFw.category === "mods") {
     const fabricFamily = ["Fabric", "Quilt"];
-    const forgeFamily = ["Forge", "NeoForge"];
     const fromFabric = fabricFamily.includes(from);
     const toFabric = fabricFamily.includes(to);
     if (fromFabric !== toFabric) {
@@ -157,12 +164,12 @@ const CATEGORY_LABEL: Record<FrameworkCategory, string> = {
   hybrid: "hybrid",
 };
 
-interface Props {
+interface SwitcherProps {
   service: Service;
   onSwitched: () => void;
 }
 
-export function MinecraftSwitcher({ service, onSwitched }: Props) {
+function useFrameworkSwitch({ service, onSwitched }: SwitcherProps) {
   const isMc = isMinecraftGame(service);
   const currentFramework = service.config?.environment?.FRAMEWORK ?? "Paper";
 
@@ -248,10 +255,117 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
     }
   };
 
-  if (!isMc) return null;
+  return {
+    isMc,
+    currentFramework,
+    selected,
+    setSelected,
+    showConfirm,
+    setShowConfirm,
+    wantBackup,
+    setWantBackup,
+    acknowledgeDataLoss,
+    setAcknowledgeDataLoss,
+    busy,
+    target,
+    targetFw,
+    warning,
+    needsDataLossAck,
+    canConfirmSwitch,
+    openConfirm,
+    handleSwitch,
+    hasAllocation,
+    canCreateBackup,
+    atBackupLimit,
+    backupCount,
+    maxBackups,
+  };
+}
+
+/** Compact settings row with dialog for framework selection. */
+export function MinecraftFrameworkPicker({ service, onSwitched }: SwitcherProps) {
+  const [open, setOpen] = useState(false);
+  const sw = useFrameworkSwitch({ service, onSwitched });
+
+  if (!sw.isMc) return null;
+
+  const currentCat =
+    FRAMEWORKS.find((f) => f.id === sw.currentFramework)?.category ?? "vanilla";
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4">
+        <div className="flex items-center gap-2">
+          <Gamepad2 className="size-4 text-muted" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Server framework</p>
+            <p className="text-xs text-muted">Paper, Fabric, Forge, and other loaders</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+              CATEGORY_STYLE[currentCat],
+            )}
+          >
+            {sw.currentFramework}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            Change
+          </Button>
+        </div>
+      </div>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => {
+            setOpen(false);
+            sw.setSelected(null);
+            sw.setShowConfirm(false);
+          }}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-auto rounded-xl border border-border bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <FrameworkPickerBody
+              sw={sw}
+              onClose={() => {
+                setOpen(false);
+                sw.setSelected(null);
+                sw.setShowConfirm(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Full overview card — kept for backwards compatibility. */
+export function MinecraftSwitcher(props: SwitcherProps) {
+  const sw = useFrameworkSwitch(props);
+  if (!sw.isMc) return null;
 
   return (
     <div className="rounded-xl border border-border bg-surface p-5">
+      <FrameworkPickerBody sw={sw} />
+    </div>
+  );
+}
+
+function FrameworkPickerBody({
+  sw,
+  onClose,
+}: {
+  sw: ReturnType<typeof useFrameworkSwitch>;
+  onClose?: () => void;
+}) {
+  return (
+    <>
       <div className="mb-4 flex items-center gap-2">
         <Gamepad2 className="size-4 text-muted" />
         <h3 className="text-sm font-semibold text-foreground">Framework Switcher</h3>
@@ -259,18 +373,27 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
           className={cn(
             "ml-auto rounded-full border px-2 py-0.5 text-[10px] font-medium",
             CATEGORY_STYLE[
-              FRAMEWORKS.find((f) => f.id === currentFramework)?.category ?? "vanilla"
+              FRAMEWORKS.find((f) => f.id === sw.currentFramework)?.category ?? "vanilla"
             ],
           )}
         >
-          {currentFramework}
+          {sw.currentFramework}
         </span>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-2 rounded-lg px-2 py-1 text-xs text-muted hover:bg-surface-raised"
+          >
+            Close
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-2">
         {FRAMEWORKS.map((fw) => {
-          const isCurrent = fw.id === currentFramework;
-          const isSelected = selected === fw.id && !isCurrent;
+          const isCurrent = fw.id === sw.currentFramework;
+          const isSelected = sw.selected === fw.id && !isCurrent;
           return (
             <motion.button
               key={fw.id}
@@ -278,10 +401,10 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
               whileTap={{ scale: 0.97 }}
               disabled={isCurrent}
               onClick={() => {
-                setSelected(isSelected ? null : fw.id);
-                setShowConfirm(false);
-                setWantBackup(null);
-                setAcknowledgeDataLoss(false);
+                sw.setSelected(isSelected ? null : fw.id);
+                sw.setShowConfirm(false);
+                sw.setWantBackup(null);
+                sw.setAcknowledgeDataLoss(false);
               }}
               className={cn(
                 "rounded-lg border p-3 text-left text-xs transition-colors",
@@ -308,9 +431,9 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
       </div>
 
       <AnimatePresence>
-        {target && targetFw && (
+        {sw.target && sw.targetFw && (
           <motion.div
-            key={target}
+            key={sw.target}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -320,23 +443,23 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
               <div className="flex items-start gap-2">
                 <Package className="mt-0.5 size-3.5 shrink-0 text-muted" />
                 <div>
-                  <p className="text-xs font-medium text-foreground">{targetFw.id}</p>
-                  <p className="mt-0.5 text-xs text-muted">{targetFw.detail}</p>
-                  {targetFw.minMC && (
-                    <p className="mt-1 text-[10px] text-subtle">Min MC version: {targetFw.minMC}</p>
+                  <p className="text-xs font-medium text-foreground">{sw.targetFw.id}</p>
+                  <p className="mt-0.5 text-xs text-muted">{sw.targetFw.detail}</p>
+                  {sw.targetFw.minMC && (
+                    <p className="mt-1 text-[10px] text-subtle">Min MC version: {sw.targetFw.minMC}</p>
                   )}
                 </div>
               </div>
             </div>
 
-            {warning && (
+            {sw.warning && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 p-3"
               >
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
-                <p className="text-xs text-amber-300">{warning}</p>
+                <p className="text-xs text-amber-300">{sw.warning}</p>
               </motion.div>
             )}
 
@@ -349,14 +472,9 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
               </p>
             </div>
 
-            {!showConfirm ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                className="mt-3"
-                onClick={openConfirm}
-              >
-                Switch to {target}
+            {!sw.showConfirm ? (
+              <Button size="sm" variant="secondary" className="mt-3" onClick={sw.openConfirm}>
+                Switch to {sw.target}
                 <ChevronRight className="size-3.5" />
               </Button>
             ) : (
@@ -368,7 +486,7 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
                 <p className="text-xs text-amber-300">
                   This will{" "}
                   <strong className="text-amber-200">
-                    stop the server, wipe framework files, and reinstall with {target}
+                    stop the server, wipe framework files, and reinstall with {sw.target}
                   </strong>
                   . The server will come back online after the install finishes.
                 </p>
@@ -377,22 +495,18 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
                   <p className="text-xs font-medium text-foreground">
                     Create a backup before switching?
                   </p>
-                  {!hasAllocation ? (
+                  {!sw.hasAllocation ? (
                     <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/8 p-2.5">
                       <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-red-400" />
                       <p className="text-xs text-red-300">
                         This server has <strong>no backup allocation</strong> (max backups: 0).
                         If anything goes wrong during the switch, you may{" "}
-                        <strong>lose world data permanently</strong>. Consider allocating backups
-                        in server settings before switching.
+                        <strong>lose world data permanently</strong>.
                       </p>
                     </div>
                   ) : (
                     <p className="mt-1 text-xs text-muted">
-                      {backupCount}/{maxBackups} backup slots used
-                      {service.resource_limits.backup_storage
-                        ? ` · stored at ${backupStorageLabel(service.resource_limits.backup_storage)}`
-                        : ""}
+                      {sw.backupCount}/{sw.maxBackups} backup slots used
                     </p>
                   )}
 
@@ -400,50 +514,38 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
                     <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
                       <input
                         type="radio"
-                        name={`backup-${service.id}`}
-                        checked={wantBackup === true}
-                        disabled={!canCreateBackup}
+                        name={`backup-${sw.target}`}
+                        checked={sw.wantBackup === true}
+                        disabled={!sw.canCreateBackup}
                         onChange={() => {
-                          setWantBackup(true);
-                          setAcknowledgeDataLoss(false);
+                          sw.setWantBackup(true);
+                          sw.setAcknowledgeDataLoss(false);
                         }}
                         className="border-border"
                       />
-                      <span className={!canCreateBackup ? "opacity-50" : ""}>
+                      <span className={!sw.canCreateBackup ? "opacity-50" : ""}>
                         Yes — create a backup first
-                        {!hasAllocation
-                          ? " (not available — no allocation)"
-                          : atBackupLimit
-                            ? " (limit reached)"
-                            : ""}
                       </span>
                     </label>
                     <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
                       <input
                         type="radio"
-                        name={`backup-${service.id}`}
-                        checked={wantBackup === false}
-                        onChange={() => setWantBackup(false)}
+                        name={`backup-${sw.target}`}
+                        checked={sw.wantBackup === false}
+                        onChange={() => sw.setWantBackup(false)}
                         className="border-border"
                       />
                       No — proceed without a backup
                     </label>
                   </div>
-
-                  {wantBackup === true && atBackupLimit && (
-                    <p className="mt-2 text-xs text-amber-400">
-                      Delete an existing backup from the Backups tab or choose to proceed without
-                      one.
-                    </p>
-                  )}
                 </div>
 
-                {needsDataLossAck && (
+                {sw.needsDataLossAck && (
                   <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-red-500/25 bg-red-500/8 p-3 text-xs text-red-300">
                     <input
                       type="checkbox"
-                      checked={acknowledgeDataLoss}
-                      onChange={(e) => setAcknowledgeDataLoss(e.target.checked)}
+                      checked={sw.acknowledgeDataLoss}
+                      onChange={(e) => sw.setAcknowledgeDataLoss(e.target.checked)}
                       className="mt-0.5 rounded border-border"
                     />
                     <span>
@@ -457,21 +559,21 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
                   <Button
                     size="sm"
                     actionType="restart"
-                    loading={busy}
-                    disabled={!canConfirmSwitch}
-                    onClick={() => void handleSwitch()}
+                    loading={sw.busy}
+                    disabled={!sw.canConfirmSwitch}
+                    onClick={() => void sw.handleSwitch()}
                   >
                     <RefreshCcw className="size-3.5" />
-                    Confirm — switch to {target}
+                    Confirm — switch to {sw.target}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={busy}
+                    disabled={sw.busy}
                     onClick={() => {
-                      setShowConfirm(false);
-                      setWantBackup(null);
-                      setAcknowledgeDataLoss(false);
+                      sw.setShowConfirm(false);
+                      sw.setWantBackup(null);
+                      sw.setAcknowledgeDataLoss(false);
                     }}
                   >
                     Cancel
@@ -482,6 +584,6 @@ export function MinecraftSwitcher({ service, onSwitched }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

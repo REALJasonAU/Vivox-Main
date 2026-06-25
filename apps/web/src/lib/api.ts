@@ -64,6 +64,9 @@ export function getApiToken(): string | null {
   return authToken;
 }
 
+/** Alias for tooling integrations. */
+export const getAuthToken = getApiToken;
+
 /** Called when SessionSync finishes retrying without obtaining a JWT. */
 export function markTokenSyncComplete(): void {
   _tokenSyncResolve?.();
@@ -167,6 +170,8 @@ export const servicesApi = {
     apiFetch<Service>(`/services/${id}/${action}`, { method: "POST" }),
   start: (id: string) => servicesApi.action(id, "start"),
   stop: (id: string) => servicesApi.action(id, "stop"),
+  forceStop: (id: string) =>
+    apiFetch<Service>(`/services/${id}/force-stop`, { method: "POST" }),
   restart: (id: string) => servicesApi.action(id, "restart"),
   deployments: (id: string) =>
     apiFetch<Deployment[]>(`/services/${id}/deployments`),
@@ -183,7 +188,9 @@ export const servicesApi = {
   ) =>
     apiFetch<Service>(`/services/${id}/config`, { method: "PATCH", body: cfg }),
   metrics: (id: string, range: string) =>
-    apiFetch<{ t: number; cpu: number; mem: number }[]>(`/services/${id}/metrics?range=${range}`),
+    apiFetch<
+      { t: number; cpu: number; mem: number; disk?: number; net_rx?: number; net_tx?: number }[]
+    >(`/services/${id}/metrics?range=${range}`),
   health: (id: string) => apiFetch<ServiceHealth>(`/services/${id}/health`),
   redeploy: (id: string) =>
     apiFetch<{ status: string }>(`/services/${id}/redeploy`, { method: "POST" }),
@@ -326,6 +333,18 @@ export const filesApi = {
     apiFetch<void>(`/services/${id}/files/mkdir`, {
       method: "POST",
       body: { path },
+      raw: true,
+    }),
+  delete: (id: string, path: string) =>
+    apiFetch<void>(`/services/${id}/files/delete`, {
+      method: "POST",
+      body: { path },
+      raw: true,
+    }),
+  move: (id: string, from: string, to: string) =>
+    apiFetch<void>(`/services/${id}/files/move`, {
+      method: "POST",
+      body: { from, to },
       raw: true,
     }),
   localSyncManifest: (id: string) => fetchLocalSyncManifest(id),

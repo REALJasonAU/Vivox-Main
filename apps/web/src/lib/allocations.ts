@@ -1,34 +1,37 @@
-import type { ResourceLimits } from "@/lib/types";
-
-export const BACKUP_STORAGE_OPTIONS = [
-  { value: "node_local", label: "Node local", path: "/var/lib/vivox/backups" },
-  { value: "node_custom", label: "Custom path on node" },
-] as const;
-
-export const DATABASE_TYPE_OPTIONS = [
-  { id: "postgresql", label: "PostgreSQL" },
-  { id: "mysql", label: "MySQL" },
-  { id: "mariadb", label: "MariaDB" },
-  { id: "redis", label: "Redis" },
-  { id: "mongodb", label: "MongoDB" },
-] as const;
-
-export function hasBackupAllocation(limits: ResourceLimits | undefined): boolean {
-  return (limits?.max_backups ?? 0) > 0;
+/** CPU shares use Docker's weight scale: 1024 shares ≈ one full CPU core. */
+export function cpuSharesToPercent(cpuShares: number): number {
+  if (!cpuShares || cpuShares <= 0) return 0;
+  return Math.round((cpuShares / 1024) * 100);
 }
 
-export function backupStorageLabel(storage: string | undefined): string {
-  if (!storage || storage === "node_local") {
-    return BACKUP_STORAGE_OPTIONS[0].path;
+export function formatCpuLimit(cpuShares: number): string {
+  if (!cpuShares || cpuShares <= 0) return "—";
+  const pct = cpuSharesToPercent(cpuShares);
+  const cores = cpuShares / 1024;
+  const coreLabel =
+    cores === 1 ? "1 core" : Number.isInteger(cores) ? `${cores} cores` : `${cores.toFixed(1)} cores`;
+  return `${pct}% (${coreLabel})`;
+}
+
+export function formatMemoryLimit(memoryMb: number): string {
+  if (!memoryMb || memoryMb <= 0) return "—";
+  if (memoryMb >= 1024 && memoryMb % 1024 === 0) {
+    return `${memoryMb / 1024} GB (${memoryMb.toLocaleString()} MB)`;
   }
-  return storage;
+  return `${memoryMb.toLocaleString()} MB`;
 }
 
-export function activeBackupCount(
-  backups: { status: string }[] | null | undefined,
-): number {
-  if (!backups) return 0;
-  return backups.filter((b) =>
-    ["pending", "running", "success"].includes(b.status),
-  ).length;
+export function formatStorageLimit(diskGb: number): string {
+  if (!diskGb || diskGb <= 0) return "—";
+  return `${diskGb} GB`;
+}
+
+/** Docker CPU shares → whole-thread count (1024 shares = 1 thread). */
+export function cpuSharesToThreads(cpuShares: number): number {
+  if (!cpuShares || cpuShares <= 0) return 1;
+  return Math.max(1, Math.round(cpuShares / 1024));
+}
+
+export function threadsToCpuShares(threads: number): number {
+  return Math.max(1, threads) * 1024;
 }

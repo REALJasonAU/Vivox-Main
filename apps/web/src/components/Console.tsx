@@ -167,6 +167,20 @@ export function Console({ serviceId, active = true, initialStatus = "STOPPED", c
   }, [serviceId]);
 
   useEffect(() => {
+    if (!active || !ready) return;
+    const fit = fitRef.current;
+    if (!fit) return;
+    const id = requestAnimationFrame(() => {
+      try {
+        fit.fit();
+      } catch {
+        /* container not measured yet */
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [active, ready]);
+
+  useEffect(() => {
     if (!ready || historyLoaded.current) return;
     historyLoaded.current = true;
     const term = termRef.current;
@@ -299,7 +313,7 @@ export function Console({ serviceId, active = true, initialStatus = "STOPPED", c
   return (
     <div
       className={cn(
-        "relative flex min-h-[60vh] flex-col overflow-hidden rounded-xl border border-border bg-surface",
+        "relative flex h-[min(560px,calc(100vh-14rem))] max-h-[560px] flex-col overflow-hidden rounded-xl border border-border bg-surface",
         className,
       )}
     >
@@ -411,16 +425,16 @@ export function Console({ serviceId, active = true, initialStatus = "STOPPED", c
         )}
       </AnimatePresence>
 
-      <div className="relative min-h-0 flex-1 bg-[#08080a]">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#08080a]">
         <div
           ref={containerRef}
           data-wrap={wrap}
           className={cn(
-            "h-full w-full px-2 py-2",
+            "absolute inset-0 px-2 py-2",
             wrap ? "overflow-x-hidden" : "overflow-x-auto",
           )}
           role="log"
-          aria-label="Service console output"
+          aria-label="Server console output"
         />
 
         <AnimatePresence>

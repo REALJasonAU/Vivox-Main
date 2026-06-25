@@ -151,7 +151,8 @@ install_local_node() {
   bash "$VIVOX_INSTALL_DIR/infra/scripts/install-node.sh" \
     --panel-url "$panel_url" \
     --token "$agent_token" \
-    --node-id "$node_id"
+    --node-id "$node_id" \
+    --control-addr "127.0.0.1:9090"
 }
 
 handle_existing_install() {

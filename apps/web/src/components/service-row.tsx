@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { ChevronRight, Clock } from "lucide-react";
 import type { MetricsPayload, Service, ServiceStatus, StatusPayload } from "@/lib/types";
 import { STATUS_META } from "@/lib/status";
 import { useTopic } from "@/hooks/useWebSocket";
+import { ConnectAddress } from "@/components/connect-address";
+import { getServiceKindLabel, ServiceIconBadge } from "@/components/service-type-icon";
 import { cn, formatBytes } from "@/lib/utils";
 
 function uptimeStr(updatedAt: string): string {
@@ -41,6 +42,7 @@ export function ServiceRow({ service }: { service: Service }) {
   const meta = STATUS_META[status];
   const cpuValue = metrics ? `${metrics.cpu.toFixed(1)}%` : "—";
   const memValue = metrics ? formatBytes(metrics.mem) : "—";
+  const kindLabel = getServiceKindLabel(service);
   const uptime =
     status === "RUNNING" ? (
       <span className="inline-flex items-center gap-1 text-emerald-500/80">
@@ -56,12 +58,21 @@ export function ServiceRow({ service }: { service: Service }) {
       href={`/services/${service.id}/overview`}
       className="group flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 transition-all duration-200 hover:border-border-focus"
     >
-      <span
-        className={cn("size-2 shrink-0 rounded-full", meta.pulse && "animate-pulse")}
-        style={{ background: `rgb(var(--status-${meta.color}))` }}
-        aria-hidden
-      />
-      <span className="min-w-0 flex-1 truncate font-medium text-foreground">{service.name}</span>
+      <ServiceIconBadge service={service} size="sm" />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={cn("size-2 shrink-0 rounded-full", meta.pulse && "animate-pulse")}
+            style={{ background: `rgb(var(--status-${meta.color}))` }}
+            aria-hidden
+          />
+          <span className="truncate font-medium text-foreground">{service.name}</span>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted">{kindLabel}</span>
+          <ConnectAddress service={service} compact className="relative z-20" />
+        </div>
+      </div>
       {service.tags && service.tags.length > 0 && (
         <span className="hidden gap-1 md:flex">
           {service.tags.slice(0, 2).map((tag) => (
