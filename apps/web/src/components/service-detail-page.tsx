@@ -326,7 +326,7 @@ function OverviewTab({ service }: { service: Service }) {
   return (
     <div className="flex flex-col gap-4">
       <HealthIndicator serviceId={service.id} />
-      <NodeOfflineBanner nodeId={service.node_id} />
+      <NodeOfflineBanner nodeId={service.node_id ?? null} />
       <MetricsChart
         serviceId={service.id}
         memoryLimitMb={service.resource_limits.memory_mb}
