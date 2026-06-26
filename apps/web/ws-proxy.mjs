@@ -37,6 +37,29 @@ const nextProxy = httpProxy.createProxyServer({
   xfwd: true,
 });
 
+/**
+ * Ensure Next.js always sees the real external host and proto so that
+ * middleware redirects go to the public domain, not localhost:PORT.
+ *
+ * http-proxy with xfwd:true adds X-Forwarded-For/Port/Proto but NOT
+ * X-Forwarded-Host. We set it from the incoming Host header (which
+ * Pangolin preserves as the original domain), and we preserve the
+ * upstream X-Forwarded-Proto instead of letting xfwd overwrite it with
+ * "http" (the internal hop is always HTTP even on a TLS site).
+ */
+nextProxy.on("proxyReq", (proxyReq, req) => {
+  // Forward the original host so Next.js middleware sees the real domain.
+  const forwardedHost = req.headers["x-forwarded-host"] ?? req.headers["host"];
+  if (forwardedHost) proxyReq.setHeader("X-Forwarded-Host", forwardedHost);
+
+  // Preserve the upstream proto (https) — xfwd:true would overwrite with "http".
+  const upstreamProto = req.headers["x-forwarded-proto"];
+  if (upstreamProto) {
+    const normalized = upstreamProto.toLowerCase().replace(/^wss?$/, "https");
+    proxyReq.setHeader("X-Forwarded-Proto", normalized);
+  }
+});
+
 const apiWsProxy = httpProxy.createProxyServer({
   target: API_TARGET,
   ws: true,

@@ -82,8 +82,9 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         # Must be passed at build time — Next.js bakes rewrite destinations
-        # into the standalone bundle during `npm run build`.
+        # and NEXT_PUBLIC_ vars into the standalone bundle during `npm run build`.
         API_URL: http://api:8080
+        NEXT_PUBLIC_APP_URL: https://${DOMAIN}
     container_name: vivox-web
     restart: unless-stopped
     depends_on:
