@@ -458,11 +458,11 @@ export function Console({ serviceId, active = true, initialStatus = "STOPPED", c
       <motion.div
         animate={
           commandFlash
-            ? { borderColor: "rgba(229, 24, 27, 0.5)", backgroundColor: "rgba(229, 24, 27, 0.04)" }
-            : { borderColor: "var(--border)", backgroundColor: "rgba(255,255,255,0.02)" }
+            ? { backgroundColor: "rgba(229, 24, 27, 0.07)" }
+            : { backgroundColor: "transparent" }
         }
-        transition={{ duration: 0.28 }}
-        className="shrink-0 border-t border-border"
+        transition={{ duration: 0.3 }}
+        className="shrink-0 bg-[#08080a]/60"
       >
         <form
           className="flex items-center gap-2 px-3 py-2.5"
@@ -487,11 +487,13 @@ export function Console({ serviceId, active = true, initialStatus = "STOPPED", c
                   : "Start server to send commands…"
             }
             className={cn(
-              "min-w-0 flex-1 bg-transparent font-mono text-sm text-foreground placeholder:text-subtle outline-none transition-all duration-200",
-              "focus:placeholder:text-muted",
+              "min-w-0 flex-1 bg-transparent font-mono text-sm text-foreground placeholder:text-subtle",
+              "outline-none ring-0 border-0 focus:outline-none focus:ring-0 focus:border-0",
+              "transition-colors duration-200 focus:placeholder:text-muted",
               !canSend && "cursor-not-allowed opacity-50",
             )}
             aria-label="Console command input"
+            style={{ WebkitTapHighlightColor: "transparent" }}
           />
         </form>
       </motion.div>

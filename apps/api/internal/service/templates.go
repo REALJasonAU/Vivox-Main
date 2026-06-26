@@ -285,7 +285,7 @@ func FindTemplateForConfig(reg map[string]*Template, cfg domain.ServiceConfig) *
 				if t, ok := reg["rust"]; ok {
 					return t
 				}
-			case "paper", "purpur", "vanilla", "fabric", "forge", "neoforge", "quilt", "mohist", "arclight":
+			case "purpur", "vanilla", "fabric", "forge", "neoforge", "quilt", "spigot":
 				if t, ok := reg["minecraft"]; ok {
 					return t
 				}

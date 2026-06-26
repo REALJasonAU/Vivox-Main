@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, Globe, X, Download } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
@@ -59,7 +58,6 @@ export function ServiceDetailPage({
   serviceId: string;
   segments?: string[];
 }) {
-  const router = useRouter();
   const { setContextServiceId } = useCommandPalette();
   const { data, loading, error, refetch } = useApi<Service>(
     () => servicesApi.get(serviceId),
@@ -101,13 +99,22 @@ export function ServiceDetailPage({
     if (data) setService(data);
   }, [data]);
 
+  // When service loads, tabs may change (adds game-specific tabs like Properties/CFG Editor).
+  // Sync the active tab to whatever the URL says — purely client-side, no Next.js navigation.
   useEffect(() => {
     if (!service) return;
     const parsed = parseServiceRoute(segments, tabs);
-    if (!tabs.includes(parsed.tab)) {
-      router.replace(buildServicePath(serviceId, "Overview"));
+    if (tabs.includes(parsed.tab)) {
+      // Tab is valid — make sure local state matches
+      setTab(parsed.tab);
+    } else {
+      // Tab no longer valid (e.g. switching game type) — silently go to Overview
+      window.history.replaceState(null, "", buildServicePath(serviceId, "Overview"));
+      setTab("Overview");
     }
-  }, [service, segments, tabs, serviceId, router]);
+    // Only re-run when service first loads or tabs array identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs, serviceId]);
 
   useEffect(() => {
     setContextServiceId(serviceId);

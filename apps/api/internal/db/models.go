@@ -226,14 +226,15 @@ const (
 )
 
 type Backup struct {
-	ID          pgtype.UUID        `json:"id"`
-	ServiceID   pgtype.UUID        `json:"service_id"`
-	NodeID      pgtype.UUID        `json:"node_id"`
-	Status      BackupStatus       `json:"status"`
-	SizeBytes   pgtype.Int8        `json:"size_bytes"`
-	Error       pgtype.Text        `json:"error"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	ID             pgtype.UUID        `json:"id"`
+	ServiceID      pgtype.UUID        `json:"service_id"`
+	NodeID         pgtype.UUID        `json:"node_id"`
+	Status         BackupStatus       `json:"status"`
+	SizeBytes      pgtype.Int8        `json:"size_bytes"`
+	Error          pgtype.Text        `json:"error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	ConfigSnapshot pgtype.Text        `json:"config_snapshot"` // JSON: {environment, startup_cmd}
 }
 
 type DomainStatus string

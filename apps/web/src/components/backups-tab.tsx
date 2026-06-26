@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, Trash2, X } from "lucide-react";
-import { servicesApi } from "@/lib/api";
+import { AlertCircle, Download, RotateCcw, Trash2, X } from "lucide-react";
+import { API_BASE, getApiToken, servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import type { Backup } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,9 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
   const [connecting, setConnecting] = useState(false);
   const [failureMsg, setFailureMsg] = useState<string | null>(null);
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
   const notifiedFailedRef = useRef<Set<string>>(new Set());
 
   const list = backups ?? [];
@@ -81,6 +84,50 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
     }
   };
 
+  const downloadBackup = async (backupId: string) => {
+    setDownloadingId(backupId);
+    try {
+      const url = `${API_BASE}/services/${serviceId}/backups/${backupId}/download`;
+      const token = getApiToken();
+      const res = await fetch(url, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        const msg = (json as { error?: string } | null)?.error ?? "Download failed";
+        toast(msg, "error");
+        return;
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `backup-${backupId.slice(0, 8)}.tar.gz`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Download failed", "error");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const restoreBackup = async (backupId: string) => {
+    setConfirmRestoreId(null);
+    setRestoringId(backupId);
+    try {
+      await servicesApi.restoreBackup(serviceId, backupId);
+      toast("Backup restored successfully", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Restore failed", "error");
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {showCreate && (
@@ -92,6 +139,42 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
           onClose={() => setShowCreate(false)}
           onConfirm={createBackup}
         />
+      )}
+
+      {/* Restore confirmation dialog */}
+      {confirmRestoreId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setConfirmRestoreId(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <RotateCcw className="size-5 shrink-0 text-amber-400" />
+              <div>
+                <h3 className="text-sm font-medium text-foreground">Restore backup?</h3>
+                <p className="mt-1 text-sm text-muted">
+                  This will stop the server and overwrite its current data with this backup.
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmRestoreId(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => void restoreBackup(confirmRestoreId)}
+              >
+                Restore
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {failureMsg && (
@@ -183,6 +266,30 @@ export function BackupsTab({ serviceId }: { serviceId: string }) {
                   >
                     {b.status}
                   </span>
+                  {b.status === "success" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void downloadBackup(b.id)}
+                        disabled={downloadingId === b.id}
+                        className="rounded p-1 text-muted hover:bg-surface-raised hover:text-foreground disabled:opacity-40"
+                        aria-label="Download backup"
+                        title="Download"
+                      >
+                        <Download className={cn("size-4", downloadingId === b.id && "animate-pulse")} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRestoreId(b.id)}
+                        disabled={restoringId === b.id}
+                        className="rounded p-1 text-muted hover:bg-surface-raised hover:text-amber-400 disabled:opacity-40"
+                        aria-label="Restore backup"
+                        title="Restore"
+                      >
+                        <RotateCcw className={cn("size-4", restoringId === b.id && "animate-spin")} />
+                      </button>
+                    </>
+                  )}
                   {b.status === "failed" && (
                     <button
                       type="button"

@@ -8,24 +8,29 @@ export function RustLogo({ className }: { className?: string }) {
     <Image
       src="/Rust-Logo.png"
       alt="Rust"
-      width={20}
-      height={20}
-      className={cn("size-5 object-contain", className)}
+      width={447}
+      height={447}
+      className={cn("object-contain drop-shadow-sm", className ?? "size-6")}
       unoptimized
     />
   );
 }
 
 export function MinecraftLogo({ className }: { className?: string }) {
+  // Source image is 3840×2160 landscape banner — we center-crop to a square
+  // by wrapping in an overflow-hidden square container.
+  const sizeClass = className ?? "size-6";
   return (
-    <Image
-      src="/Minecraft-Logo.png"
-      alt="Minecraft"
-      width={20}
-      height={20}
-      className={cn("size-5 object-contain", className)}
-      unoptimized
-    />
+    <span className={cn("relative block overflow-hidden rounded-sm", sizeClass)}>
+      <Image
+        src="/Minecraft-Logo.png"
+        alt="Minecraft"
+        width={3840}
+        height={2160}
+        className="absolute inset-0 h-full w-full object-cover object-center"
+        unoptimized
+      />
+    </span>
   );
 }
 

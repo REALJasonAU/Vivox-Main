@@ -155,7 +155,14 @@ func run(log *slog.Logger) error {
 // startGRPC binds the AgentController gRPC server, configuring mTLS unless
 // explicitly disabled for local development.
 func startGRPC(ctx context.Context, cfg config.Config, srv *grpcsrv.Server, log *slog.Logger) (*grpclib.Server, error) {
+	// Allow up to 512 MiB for backup file uploads over gRPC.
+	const grpcMaxMsgSize = 512 * 1024 * 1024
 	var opts []grpclib.ServerOption
+	opts = append(opts,
+		grpclib.MaxRecvMsgSize(grpcMaxMsgSize),
+		grpclib.MaxSendMsgSize(grpcMaxMsgSize),
+	)
+
 	if cfg.GRPCTLSDisabled {
 		log.Warn("gRPC mTLS disabled (dev only)")
 	} else {
@@ -256,6 +263,8 @@ func buildHTTP(a *api, hub *ws.Hub) *fiber.App {
 	apiGroup.Post("/services/:id/backups", a.createBackup)
 	apiGroup.Delete("/services/:id/backups/:backupId", a.deleteBackup)
 	apiGroup.Post("/services/:id/backups/:backupId/dismiss", a.dismissBackup)
+	apiGroup.Get("/services/:id/backups/:backupId/download", a.downloadBackup)
+	apiGroup.Post("/services/:id/backups/:backupId/restore", a.restoreBackup)
 
 	apiGroup.Get("/services/:id/domains", a.listServiceDomains)
 	apiGroup.Post("/services/:id/domains", a.addServiceDomain)

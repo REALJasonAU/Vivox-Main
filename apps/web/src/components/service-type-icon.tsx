@@ -66,7 +66,8 @@ export function ServiceIconBadge({
   service: Service;
   size?: "sm" | "md";
 }) {
-  const box = size === "sm" ? "size-8 rounded-lg" : "size-10 rounded-xl";
+  const box = size === "sm" ? "size-8 rounded-lg" : "size-11 rounded-xl";
+  const iconCls = size === "sm" ? "size-4" : "size-6";
   return (
     <span
       className={cn(
@@ -76,7 +77,7 @@ export function ServiceIconBadge({
         isMinecraftGame(service) && "border-[#5D8C3E]/25 bg-[#5D8C3E]/10",
       )}
     >
-      <ServiceTypeIcon service={service} className={size === "sm" ? "size-4" : undefined} />
+      <ServiceTypeIcon service={service} className={iconCls} />
     </span>
   );
 }

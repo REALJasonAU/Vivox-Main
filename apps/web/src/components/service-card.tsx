@@ -9,22 +9,35 @@ import { isTransient } from "@/lib/status";
 import { useTopic } from "@/hooks/useWebSocket";
 import { StatusBadge } from "./status-badge";
 import { ConnectAddress } from "@/components/connect-address";
-import { getServiceKindLabel, ServiceIconBadge } from "@/components/service-type-icon";
+import { ServiceIconBadge } from "@/components/service-type-icon";
 import { cn, formatBytes } from "@/lib/utils";
 
 function MetricBar({ label, value, percent }: { label: string; value: string; percent: number }) {
+  const barColor =
+    percent > 85 ? "bg-red-500" : percent > 60 ? "bg-amber-500" : "bg-emerald-500";
+  const valueColor =
+    percent > 85
+      ? "text-red-400"
+      : percent > 60
+        ? "text-amber-400"
+        : percent > 0
+          ? "text-emerald-400"
+          : "text-muted";
+
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
         <span>{label}</span>
-        <span className="font-mono normal-case tracking-normal">{value}</span>
+        <span className={cn("font-mono normal-case tracking-normal font-medium", valueColor)}>
+          {value}
+        </span>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-surface-raised">
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-raised">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, percent)}%` }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-          className="h-full rounded-full bg-emerald-500"
+          className={cn("h-full rounded-full", barColor)}
         />
       </div>
     </div>
@@ -41,8 +54,6 @@ function uptimeStr(updatedAt: string): string {
 }
 
 export function ServiceCard({ service }: { service: Service }) {
-  const kindLabel = getServiceKindLabel(service);
-
   const [status, setStatus] = useState<ServiceStatus>(service.status);
   const [metrics, setMetrics] = useState<{ cpu: number; mem: number } | null>(null);
 
@@ -72,14 +83,23 @@ export function ServiceCard({ service }: { service: Service }) {
 
   return (
     <motion.div
-      whileHover={{ y: -2, scale: 1.005, borderColor: "rgba(229,24,27,0.25)" }}
+      whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 400, damping: 22 }}
       className={cn(
-        "group relative flex flex-col gap-4 rounded-xl border border-border bg-surface p-5",
+        "group relative flex flex-col gap-4 overflow-hidden rounded-xl border border-border bg-surface p-5 transition-colors hover:border-border-focus",
         locked && "opacity-90",
       )}
     >
+      {/* TailAdmin-style radial gradient hover overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{
+          background:
+            "radial-gradient(450px circle at 50% -10%, rgba(229,24,27,0.055) 0%, transparent 70%)",
+        }}
+      />
+
       <Link
         href={`/services/${service.id}/overview`}
         className="absolute inset-0 z-10 rounded-xl"
@@ -91,8 +111,7 @@ export function ServiceCard({ service }: { service: Service }) {
           <ServiceIconBadge service={service} />
           <div className="min-w-0">
             <h3 className="truncate font-medium tracking-tight text-foreground">{service.name}</h3>
-            <p className="text-xs uppercase tracking-wider text-muted">{kindLabel}</p>
-            <ConnectAddress service={service} className="relative z-20 mt-1.5" />
+            <ConnectAddress service={service} className="relative z-20 mt-0.5" />
             {service.tags && service.tags.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {service.tags.slice(0, 3).map((tag) => (

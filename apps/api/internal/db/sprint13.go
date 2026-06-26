@@ -110,24 +110,25 @@ func scanWebhookConfigs(rows interface {
 // --- Backups ---
 
 type CreateBackupParams struct {
-	ServiceID pgtype.UUID
-	NodeID    pgtype.UUID
-	Status    BackupStatus
+	ServiceID      pgtype.UUID
+	NodeID         pgtype.UUID
+	Status         BackupStatus
+	ConfigSnapshot pgtype.Text // JSON snapshot of environment + startup_cmd
 }
 
 const createBackup = `
-INSERT INTO backups (service_id, node_id, status)
-VALUES ($1, $2, $3)
-RETURNING id, service_id, node_id, status, size_bytes, error, created_at, completed_at
+INSERT INTO backups (service_id, node_id, status, config_snapshot)
+VALUES ($1, $2, $3, $4::jsonb)
+RETURNING id, service_id, node_id, status, size_bytes, error, created_at, completed_at, config_snapshot
 `
 
 func (q *Queries) CreateBackup(ctx context.Context, arg CreateBackupParams) (Backup, error) {
-	row := q.db.QueryRow(ctx, createBackup, arg.ServiceID, arg.NodeID, arg.Status)
+	row := q.db.QueryRow(ctx, createBackup, arg.ServiceID, arg.NodeID, arg.Status, arg.ConfigSnapshot)
 	return scanBackup(row)
 }
 
 const listBackupsForService = `
-SELECT id, service_id, node_id, status, size_bytes, error, created_at, completed_at
+SELECT id, service_id, node_id, status, size_bytes, error, created_at, completed_at, config_snapshot
 FROM backups WHERE service_id = $1 AND dismissed = false ORDER BY created_at DESC
 `
 
@@ -141,7 +142,7 @@ func (q *Queries) ListBackupsForService(ctx context.Context, serviceID pgtype.UU
 	for rows.Next() {
 		var b Backup
 		if err := rows.Scan(
-			&b.ID, &b.ServiceID, &b.NodeID, &b.Status, &b.SizeBytes, &b.Error, &b.CreatedAt, &b.CompletedAt,
+			&b.ID, &b.ServiceID, &b.NodeID, &b.Status, &b.SizeBytes, &b.Error, &b.CreatedAt, &b.CompletedAt, &b.ConfigSnapshot,
 		); err != nil {
 			return nil, err
 		}
@@ -172,13 +173,23 @@ type UpdateBackupResultParams struct {
 const updateBackupResult = `
 UPDATE backups SET status = $2, size_bytes = $3, error = $4, completed_at = $5
 WHERE id = $1
-RETURNING id, service_id, node_id, status, size_bytes, error, created_at, completed_at
+RETURNING id, service_id, node_id, status, size_bytes, error, created_at, completed_at, config_snapshot
 `
 
 func (q *Queries) UpdateBackupResult(ctx context.Context, arg UpdateBackupResultParams) (Backup, error) {
 	row := q.db.QueryRow(ctx, updateBackupResult,
 		arg.ID, arg.Status, arg.SizeBytes, arg.Error, arg.CompletedAt,
 	)
+	return scanBackup(row)
+}
+
+const getBackup = `
+SELECT id, service_id, node_id, status, size_bytes, error, created_at, completed_at, config_snapshot
+FROM backups WHERE id = $1 AND service_id = $2 LIMIT 1
+`
+
+func (q *Queries) GetBackup(ctx context.Context, id, serviceID pgtype.UUID) (Backup, error) {
+	row := q.db.QueryRow(ctx, getBackup, id, serviceID)
 	return scanBackup(row)
 }
 
@@ -200,7 +211,7 @@ func (q *Queries) DismissBackup(ctx context.Context, backupID, serviceID pgtype.
 func scanBackup(row interface{ Scan(dest ...any) error }) (Backup, error) {
 	var b Backup
 	err := row.Scan(
-		&b.ID, &b.ServiceID, &b.NodeID, &b.Status, &b.SizeBytes, &b.Error, &b.CreatedAt, &b.CompletedAt,
+		&b.ID, &b.ServiceID, &b.NodeID, &b.Status, &b.SizeBytes, &b.Error, &b.CreatedAt, &b.CompletedAt, &b.ConfigSnapshot,
 	)
 	return b, err
 }

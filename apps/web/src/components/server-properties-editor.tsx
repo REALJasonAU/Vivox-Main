@@ -9,6 +9,8 @@ import {
   RefreshCcw,
   Eye,
   EyeOff,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -237,14 +239,23 @@ function PropertyRow({
         {entry.comment && <p className="mt-0.5 text-[10px] text-subtle">{entry.comment}</p>}
       </div>
       {isBool ? (
-        <select
-          value={entry.value}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn(inputClass, "h-9 w-full sm:max-w-xs")}
+        <button
+          type="button"
+          onClick={() => onChange(entry.value === "true" ? "false" : "true")}
+          className={cn(
+            "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors sm:max-w-xs",
+            entry.value === "true"
+              ? "border-vivox-500/40 bg-vivox-500/15 text-vivox-400"
+              : "border-border bg-background text-muted hover:text-foreground",
+          )}
         >
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
+          {entry.value === "true" ? (
+            <ToggleRight className="size-4" />
+          ) : (
+            <ToggleLeft className="size-4" />
+          )}
+          {entry.value === "true" ? "true" : "false"}
+        </button>
       ) : (
         <input
           value={entry.value}

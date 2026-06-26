@@ -220,6 +220,10 @@ export const servicesApi = {
     apiFetch<void>(`/services/${id}/backups/${backupId}`, { method: "DELETE", raw: true }),
   dismissBackup: (serviceId: string, backupId: string) =>
     apiFetch<void>(`/services/${serviceId}/backups/${backupId}/dismiss`, { method: "POST", raw: true }),
+  downloadBackupUrl: (serviceId: string, backupId: string) =>
+    `${API_BASE}/services/${serviceId}/backups/${backupId}/download`,
+  restoreBackup: (serviceId: string, backupId: string) =>
+    apiFetch<{ status: string; backup_id: string }>(`/services/${serviceId}/backups/${backupId}/restore`, { method: "POST" }),
   listDomains: (id: string) => apiFetch<ServiceDomain[]>(`/services/${id}/domains`),
   addDomain: (id: string, domain: string) =>
     apiFetch<ServiceDomain>(`/services/${id}/domains`, { method: "POST", body: { domain } }),

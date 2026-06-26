@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useSpring, useTransform } from "framer-motion";
-import { LayoutGrid, List, Server } from "lucide-react";
+import { CheckCircle2, LayoutGrid, List, Loader2, Power, Server } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import { useLiveServiceStatuses } from "@/hooks/useLiveStatuses";
@@ -45,18 +45,50 @@ function AnimatedNumber({ value }: { value: number }) {
   return <motion.span>{display}</motion.span>;
 }
 
-function SummaryCard({ label, value, index }: { label: string; value: number; index: number }) {
+const SUMMARY_VARIANTS = {
+  running: {
+    numClass: "text-emerald-500",
+    iconWrap: "border-emerald-500/20 bg-emerald-500/10",
+    icon: <CheckCircle2 className="size-5 text-emerald-400" />,
+  },
+  starting: {
+    numClass: "text-amber-400",
+    iconWrap: "border-amber-500/20 bg-amber-500/10",
+    icon: <Loader2 className="size-5 animate-spin text-amber-400" />,
+  },
+  stopped: {
+    numClass: "text-muted",
+    iconWrap: "border-border bg-surface-raised",
+    icon: <Power className="size-5 text-subtle" />,
+  },
+};
+
+function SummaryCard({
+  label,
+  value,
+  index,
+  variant,
+}: {
+  label: string;
+  value: number;
+  index: number;
+  variant: keyof typeof SUMMARY_VARIANTS;
+}) {
+  const styles = SUMMARY_VARIANTS[variant];
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.3, ease: [0.16, 1, 0.3, 1] as const }}
-      className="rounded-xl border border-border bg-surface p-3"
+      className="rounded-xl border border-border bg-surface p-4"
     >
-      <p className="text-3xl font-semibold tracking-tight text-foreground">
+      <div className={cn("mb-3 flex size-9 items-center justify-center rounded-lg border", styles.iconWrap)}>
+        {styles.icon}
+      </div>
+      <p className={cn("text-3xl font-semibold tracking-tight", styles.numClass)}>
         <AnimatedNumber value={value} />
       </p>
-      <p className="mt-1 text-xs uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-0.5 text-xs uppercase tracking-wider text-muted">{label}</p>
     </motion.div>
   );
 }
@@ -166,9 +198,9 @@ export default function DashboardPage() {
 
       {!loading && services.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <SummaryCard label="Running" value={running} index={0} />
-          <SummaryCard label="Starting" value={starting} index={1} />
-          <SummaryCard label="Stopped" value={stopped} index={2} />
+          <SummaryCard label="Running" value={running} index={0} variant="running" />
+          <SummaryCard label="Starting" value={starting} index={1} variant="starting" />
+          <SummaryCard label="Stopped" value={stopped} index={2} variant="stopped" />
         </div>
       )}
 
@@ -207,11 +239,18 @@ export default function DashboardPage() {
           </div>
         </div>
       ) : view === "list" ? (
-        <div className="flex flex-col gap-2">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="flex flex-col gap-2"
+        >
           {filteredServices.map((service) => (
-            <ServiceRow key={service.id} service={service} />
+            <motion.div key={service.id} variants={cardVariants}>
+              <ServiceRow service={service} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       ) : (
         <motion.div
           variants={containerVariants}

@@ -8,9 +8,13 @@ import {
 
   createElement,
 
+  useCallback,
+
   useContext,
 
   useEffect,
+
+  useMemo,
 
   useRef,
 
@@ -698,17 +702,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
 
 
-  const value: WsContextValue = {
+  const subscribe = useCallback(
+    <T = unknown>(topic: string, handler: TopicHandler<T>) => manager.subscribe(topic, handler),
+    [manager],
+  );
 
-    status,
+  const unsubscribe = useCallback(
+    <T = unknown>(topic: string, handler: TopicHandler<T>) => manager.unsubscribe(topic, handler),
+    [manager],
+  );
 
-    subscribe: (topic, handler) => manager.subscribe(topic, handler),
+  const sendRaw = useCallback(
+    (frame: object) => manager.sendRaw(frame),
+    [manager],
+  );
 
-    unsubscribe: (topic, handler) => manager.unsubscribe(topic, handler),
-
-    sendRaw: (frame) => manager.sendRaw(frame),
-
-  };
+  const value: WsContextValue = useMemo(
+    () => ({ status, subscribe, unsubscribe, sendRaw }),
+    [status, subscribe, unsubscribe, sendRaw],
+  );
 
 
 

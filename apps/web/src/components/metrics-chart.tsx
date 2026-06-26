@@ -235,10 +235,10 @@ export function MetricsChart({
             <Skeleton className="h-[196px] rounded-xl" />
           </div>
         )}
-        <Panel icon={<Cpu className="size-4" />} title="CPU" value={latest ? `${latest.cpu}%` : "—"}>
+        <Panel icon={<Cpu className="size-4" />} title="CPU" value={latest ? `${latest.cpu}%` : "—"} color="229 24 27">
           <Chart data={points} dataKey="cpu" color="229 24 27" unit="%" domain={[0, 100]} emptyMessage={emptyChartMessage} />
         </Panel>
-        <Panel icon={<MemoryStick className="size-4" />} title="Memory" value={memDisplay}>
+        <Panel icon={<MemoryStick className="size-4" />} title="Memory" value={memDisplay} color="16 185 129">
           <Chart
             data={points}
             dataKey="mem"
@@ -253,7 +253,7 @@ export function MetricsChart({
             }
           />
         </Panel>
-        <Panel icon={<Network className="size-4" />} title="Network" value={netDisplay}>
+        <Panel icon={<Network className="size-4" />} title="Network" value={netDisplay} color="56 189 248">
           <Chart
             data={points}
             dataKey="net"
@@ -262,7 +262,7 @@ export function MetricsChart({
             formatTooltip={(v) => bytesPerSecLabel(v)}
           />
         </Panel>
-        <Panel icon={<HardDrive className="size-4" />} title="Storage" value={diskDisplay}>
+        <Panel icon={<HardDrive className="size-4" />} title="Storage" value={diskDisplay} color="168 85 247">
           <Chart
             data={points}
             dataKey="disk"
@@ -286,25 +286,38 @@ function Panel({
   icon,
   title,
   value,
+  color,
   children,
 }: {
   icon: ReactNode;
   title: string;
   value: string;
+  color: string;
   children: ReactNode;
 }) {
+  const numVal = parseFloat(value);
+  const isPercent = value.endsWith("%");
+  const valueClass =
+    isPercent && !isNaN(numVal)
+      ? numVal > 85
+        ? "text-red-400"
+        : numVal > 60
+          ? "text-amber-400"
+          : "text-emerald-400"
+      : "text-foreground";
+
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted">
-          <span className="text-vivox-400">{icon}</span>
+    <div className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-border-focus">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted">
+          <span style={{ color: `rgb(${color})` }}>{icon}</span>
           {title}
         </span>
-        <span className="font-mono text-lg font-medium tracking-tight tabular-nums text-foreground">
+        <span className={cn("font-mono text-xl font-semibold tracking-tight tabular-nums", valueClass)}>
           {value}
         </span>
       </div>
-      <div className="h-36">{children}</div>
+      <div className="h-32">{children}</div>
     </div>
   );
 }

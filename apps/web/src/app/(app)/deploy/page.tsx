@@ -33,9 +33,7 @@ import {
   type PortBinding,
 } from "@/lib/ports";
 import {
-  BACKUP_STORAGE_OPTIONS,
   DATABASE_TYPE_OPTIONS,
-  backupStorageLabel,
 } from "@/lib/allocations";
 import { useApi } from "@/hooks/useApi";
 import { toast } from "@/hooks/useToast";
@@ -171,10 +169,6 @@ export default function DeployPage() {
   const [portBindings, setPortBindings] = useState<PortBinding[]>([]);
   const [mainPortIndex, setMainPortIndex] = useState(0);
   const [maxBackups, setMaxBackups] = useState(3);
-  const [backupStorageMode, setBackupStorageMode] = useState<"node_local" | "node_custom">(
-    "node_local",
-  );
-  const [backupCustomPath, setBackupCustomPath] = useState("");
   const [databaseSlots, setDatabaseSlots] = useState(0);
   const [databaseTypes, setDatabaseTypes] = useState<string[]>([]);
   const [deploying, setDeploying] = useState(false);
@@ -229,17 +223,12 @@ export default function DeployPage() {
     setPortBindings(initialPortBindings(t));
     setMainPortIndex(0);
     setMaxBackups(3);
-    setBackupStorageMode("node_local");
-    setBackupCustomPath("");
     setDatabaseSlots(0);
     setDatabaseTypes([]);
     setStep(1);
   };
 
-  const backupStorageResolved =
-    backupStorageMode === "node_custom"
-      ? backupCustomPath.trim()
-      : BACKUP_STORAGE_OPTIONS[0].value;
+  const backupStorageResolved = "node_local";
 
   const canConfigure =
     name.trim().length >= 2 &&
@@ -256,7 +245,6 @@ export default function DeployPage() {
     cpuThreads > 0 &&
     diskGb > 0 &&
     maxBackups >= 0 &&
-    (backupStorageMode !== "node_custom" || backupCustomPath.trim().length > 0) &&
     (databaseSlots === 0 || databaseTypes.length > 0);
 
   const deploy = async () => {
@@ -338,7 +326,7 @@ export default function DeployPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Deploy a server</h1>
       </div>
@@ -578,33 +566,7 @@ export default function DeployPage() {
                       Set to 0 to disable backups for this server.
                     </p>
                   </Labeled>
-                  <Labeled label="Backup storage">
-                    <select
-                      value={backupStorageMode}
-                      onChange={(e) =>
-                        setBackupStorageMode(e.target.value as "node_local" | "node_custom")
-                      }
-                      className={inputClass}
-                    >
-                      {BACKUP_STORAGE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value} className="bg-surface">
-                          {opt.label}
-                          {"path" in opt ? ` (${opt.path})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </Labeled>
                 </div>
-                {backupStorageMode === "node_custom" && (
-                  <Labeled label="Custom backup path on node">
-                    <input
-                      value={backupCustomPath}
-                      onChange={(e) => setBackupCustomPath(e.target.value)}
-                      placeholder="/mnt/backups/my-server"
-                      className={cn(inputClass, "mt-2 font-mono")}
-                    />
-                  </Labeled>
-                )}
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <Labeled label="Database slots">
                     <input
@@ -781,10 +743,7 @@ export default function DeployPage() {
                     .join(", ")}
                 />
                 <ReviewRow label="Max backups" value={String(maxBackups)} />
-                <ReviewRow
-                  label="Backup storage"
-                  value={backupStorageLabel(backupStorageResolved)}
-                />
+                <ReviewRow label="Backup storage" value="Node local (/var/lib/vivox/backups)" />
                 {databaseSlots > 0 && (
                   <>
                     <ReviewRow label="Database slots" value={String(databaseSlots)} />

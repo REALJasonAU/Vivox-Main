@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, RefreshCw, RotateCcw, Save } from "lucide-react";
 import { servicesApi } from "@/lib/api";
 import { toast } from "@/hooks/useToast";
-import type { ApiConfigurableField, ApiTemplate, Service } from "@/lib/types";
+import type { ApiConfigurableField, ApiTemplate, ApiTemplateResources, DeployTemplate, Service } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -13,7 +13,37 @@ import {
   templateIdForService,
 } from "@/lib/game-service";
 import { getTemplatesCached } from "@/lib/templates-cache";
+import { DEPLOY_TEMPLATES } from "@/lib/templates";
 import { generateSecurePassword } from "@/lib/password";
+
+/** Convert a local DeployTemplate to the ApiTemplate shape needed by buildStartupRows. */
+function localTemplateToApi(t: DeployTemplate): ApiTemplate {
+  return {
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    type: t.type,
+    image: t.defaultImage,
+    ports: t.defaultPorts,
+    configurable: t.env.map((e) => ({
+      key: e.key.toLowerCase(),
+      label: e.label,
+      default: e.value,
+      env: e.key,
+      description: e.description,
+      options: e.options,
+      field_type: e.fieldType,
+      required: e.required,
+    })),
+    resources: {
+      memory_mb: t.defaultMemoryMb ?? 512,
+      cpu_shares: (t.defaultCpuThreads ?? 1) * 1024,
+      disk_gb: t.defaultDiskGb ?? 5,
+    } as ApiTemplateResources,
+    startup_cmd: t.defaultStartupCmd,
+    install_script: t.defaultInstallScript,
+  };
+}
 
 const inputClass =
   "rounded-lg border border-border bg-background/50 px-3 font-mono text-sm text-foreground outline-none transition-all duration-200 focus:border-border-focus focus:ring-1 focus:ring-border-focus";
@@ -47,10 +77,16 @@ export function StartupTab({
   const templateDefaultCmd = template?.startup_cmd?.trim() ?? "";
 
   useEffect(() => {
-    void getTemplatesCached().then((templates) => {
+    void getTemplatesCached().then((apiTemplates) => {
       const id = templateId ?? (service.type === "game" ? "minecraft" : null);
-      const match = id ? templates.find((t) => t.id === id) : undefined;
-      setTemplate(match ?? null);
+      // Try API templates first; fall back to local DEPLOY_TEMPLATES
+      let match: ApiTemplate | null =
+        id ? (apiTemplates.find((t) => t.id === id) ?? null) : null;
+      if (!match && id) {
+        const local = DEPLOY_TEMPLATES.find((t) => t.id === id);
+        if (local) match = localTemplateToApi(local);
+      }
+      setTemplate(match);
       setFieldDefs(match?.configurable ?? []);
     });
   }, [templateId, service.type]);

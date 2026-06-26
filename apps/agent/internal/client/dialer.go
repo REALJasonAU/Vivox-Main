@@ -37,6 +37,9 @@ func dial(cfg Config) (*grpc.ClientConn, error) {
 		transport = credentials.NewTLS(tlsCfg)
 	}
 
+	// Allow up to 512 MiB for backup file transfers over gRPC.
+	const maxMsgSize = 512 * 1024 * 1024
+
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transport),
 		grpc.WithPerRPCCredentials(tokenAuth{
@@ -44,6 +47,10 @@ func dial(cfg Config) (*grpc.ClientConn, error) {
 			agentID: cfg.AgentID,
 			secure:  !cfg.Insecure,
 		}),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+		),
 	}
 
 	conn, err := grpc.NewClient(cfg.Address, opts...)

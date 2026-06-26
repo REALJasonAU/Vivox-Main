@@ -1,10 +1,10 @@
 id: minecraft
 name: Minecraft Server
 description: |
-  Java Edition Minecraft server with support for Paper, Purpur, Fabric, Forge, NeoForge, Quilt,
-  Mohist, and Arclight. Switch frameworks at any time from the panel — world data is always preserved.
-  Bukkit-based loaders (Paper, Purpur, Mohist, Arclight) support plugins. Mod loaders (Fabric, Forge,
-  NeoForge, Quilt) support mods. Mohist and Arclight support both simultaneously.
+  Java Edition Minecraft server with support for Vanilla, Purpur, Fabric, Forge, NeoForge,
+  Quilt, and Spigot. Switch frameworks at any time from the panel — world data is always
+  preserved. Bukkit-based servers (Purpur, Spigot) support plugins. Mod loaders (Fabric,
+  Forge, NeoForge, Quilt) support mods.
 type: game
 image: eclipse-temurin:21-jre-alpine
 installer_image: eclipse-temurin:21-jdk-alpine
@@ -14,12 +14,12 @@ ports:
 
 startup_cmd: |
   cd /mnt/server
-  if [ -f server.jar ]; then
-    exec java -Xmx${MEMORY}M -Xms${MEMORY}M ${JVM_FLAGS} -jar server.jar nogui
-  elif ls forge-*-shim.jar 2>/dev/null | head -1 | grep -q .; then
+  if ls forge-*-shim.jar 2>/dev/null | head -1 | grep -q .; then
     exec java -Xmx${MEMORY}M -Xms${MEMORY}M ${JVM_FLAGS} @user_jvm_args.txt @libraries/net/minecraftforge/forge/*/unix_args.txt nogui
   elif ls neoforge-*-shim.jar 2>/dev/null | head -1 | grep -q .; then
     exec java -Xmx${MEMORY}M -Xms${MEMORY}M ${JVM_FLAGS} @user_jvm_args.txt @libraries/net/neoforged/neoforge/*/unix_args.txt nogui
+  elif [ -f server.jar ]; then
+    exec java -Xmx${MEMORY}M -Xms${MEMORY}M ${JVM_FLAGS} -jar server.jar nogui
   else
     echo "[Vivox] ERROR: No server JAR found. Trigger a reinstall from the panel." >&2
     sleep 60
@@ -35,30 +35,13 @@ install_script: |
   echo "eula=true" > eula.txt
 
   MC_VERSION="${MC_VERSION:-1.21.4}"
-  FRAMEWORK="${FRAMEWORK:-Paper}"
+  FRAMEWORK="${FRAMEWORK:-Purpur}"
   FRAMEWORK_LC=$(echo "$FRAMEWORK" | tr '[:upper:]' '[:lower:]')
 
-  # Remove old framework files (but never world/, plugins/, mods/, config/)
+  # Remove old framework files (never touch world/, plugins/, mods/, config/)
   rm -f server.jar forge-*-shim.jar neoforge-*-shim.jar fabric-server-launch.jar \
         quilt-server-launch.jar *.jar.bak run.sh user_jvm_args.txt 2>/dev/null || true
   rm -rf libraries/ versions/ .fabric/ .quilt/ 2>/dev/null || true
-
-  # ── Paper ────────────────────────────────────────────────────────────────────
-  install_paper() {
-    echo "[Vivox] Fetching latest Paper build for ${MC_VERSION}..."
-    BUILD=$(curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds" \
-      | python3 -c "import sys,json; builds=json.load(sys.stdin)['builds']; print(sorted(builds,key=lambda b:b['build'])[-1]['build'])")
-    curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/paper-${MC_VERSION}-${BUILD}.jar" \
-      -o server.jar
-    echo "[Vivox] Paper ${MC_VERSION} build ${BUILD} installed."
-  }
-
-  # ── Purpur ───────────────────────────────────────────────────────────────────
-  install_purpur() {
-    echo "[Vivox] Fetching Purpur ${MC_VERSION}..."
-    curl -fsSL "https://api.purpurmc.org/v2/purpur/${MC_VERSION}/latest/download" -o server.jar
-    echo "[Vivox] Purpur ${MC_VERSION} (latest build) installed."
-  }
 
   # ── Vanilla ──────────────────────────────────────────────────────────────────
   install_vanilla() {
@@ -73,9 +56,25 @@ install_script: |
     echo "[Vivox] Vanilla ${MC_VERSION} installed."
   }
 
+  # ── Purpur ───────────────────────────────────────────────────────────────────
+  install_purpur() {
+    BUILD_NUM="${BUILD_NUMBER:-latest}"
+    echo "[Vivox] Fetching Purpur ${MC_VERSION} (build: ${BUILD_NUM})..."
+    if [ "$BUILD_NUM" = "latest" ]; then
+      curl -fsSL "https://api.purpurmc.org/v2/purpur/${MC_VERSION}/latest/download" -o server.jar
+    else
+      curl -fsSL "https://api.purpurmc.org/v2/purpur/${MC_VERSION}/${BUILD_NUM}/download" -o server.jar
+    fi
+    echo "[Vivox] Purpur ${MC_VERSION} installed."
+  }
+
   # ── Fabric ───────────────────────────────────────────────────────────────────
   install_fabric() {
-    FABRIC_LOADER="${FABRIC_LOADER_VERSION:-0.16.9}"
+    FABRIC_LOADER="${FABRIC_LOADER_VERSION:-latest}"
+    if [ "$FABRIC_LOADER" = "latest" ]; then
+      FABRIC_LOADER=$(curl -fsSL "https://meta.fabricmc.net/v2/versions/loader" \
+        | python3 -c "import sys,json; v=json.load(sys.stdin); print(v[0]['version'])")
+    fi
     echo "[Vivox] Installing Fabric loader ${FABRIC_LOADER} for MC ${MC_VERSION}..."
     INSTALLER_URL=$(curl -fsSL "https://meta.fabricmc.net/v2/versions/installer" \
       | python3 -c "import sys,json; v=json.load(sys.stdin); print(v[0]['url'])")
@@ -92,7 +91,11 @@ install_script: |
 
   # ── Quilt ────────────────────────────────────────────────────────────────────
   install_quilt() {
-    QUILT_LOADER="${QUILT_LOADER_VERSION:-0.27.1}"
+    QUILT_LOADER="${QUILT_LOADER_VERSION:-latest}"
+    if [ "$QUILT_LOADER" = "latest" ]; then
+      QUILT_LOADER=$(curl -fsSL "https://meta.quiltmc.org/v3/versions/loader" \
+        | python3 -c "import sys,json; v=json.load(sys.stdin); print(v[0]['version'])")
+    fi
     echo "[Vivox] Installing Quilt loader ${QUILT_LOADER} for MC ${MC_VERSION}..."
     INSTALLER_URL=$(curl -fsSL "https://meta.quiltmc.org/v3/versions/installer" \
       | python3 -c "import sys,json; v=json.load(sys.stdin); print(v[0]['url'])")
@@ -110,16 +113,16 @@ install_script: |
   install_forge() {
     FORGE_VER="${FORGE_VERSION:-}"
     if [ -z "$FORGE_VER" ]; then
-      echo "[Vivox] Looking up latest Forge for MC ${MC_VERSION}..."
+      echo "[Vivox] Looking up recommended Forge build for MC ${MC_VERSION}..."
       FORGE_VER=$(curl -fsSL "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json" \
         | python3 -c "
 import sys,json
 d=json.load(sys.stdin)['promos']
-key='${MC_VERSION}-latest'
+key='${MC_VERSION}-recommended'
 if key in d: print(d[key])
 else:
-  rkey='${MC_VERSION}-recommended'
-  print(d.get(rkey, ''))
+  lkey='${MC_VERSION}-latest'
+  print(d.get(lkey, ''))
 ")
     fi
     if [ -z "$FORGE_VER" ]; then
@@ -161,61 +164,42 @@ else:
     echo "[Vivox] NeoForge ${NEOFORGE_VER} installed."
   }
 
-  # ── Mohist (Paper + Forge hybrid) ────────────────────────────────────────────
-  install_mohist() {
-    echo "[Vivox] Fetching Mohist ${MC_VERSION}..."
-    BUILD=$(curl -fsSL "https://mohistmc.com/api/v2/projects/mohist/${MC_VERSION}/builds" \
-      | python3 -c "import sys,json; builds=json.load(sys.stdin).get('builds',[]); print(builds[-1]['number'] if builds else '')" 2>/dev/null || echo "")
-    if [ -z "$BUILD" ]; then
-      curl -fsSL "https://mohistmc.com/api/v2/projects/mohist/${MC_VERSION}/builds/latest/download" -o server.jar
+  # ── Spigot ───────────────────────────────────────────────────────────────────
+  install_spigot() {
+    apk add --no-cache git 2>/dev/null || apt-get install -y git 2>/dev/null || true
+    echo "[Vivox] Building Spigot ${MC_VERSION} via BuildTools (this takes a few minutes)..."
+    mkdir -p /tmp/buildtools
+    curl -fsSL "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar" \
+      -o /tmp/buildtools/BuildTools.jar
+    cd /tmp/buildtools
+    java -jar BuildTools.jar --rev "${MC_VERSION}" --output-dir /mnt/server --nogui 2>&1
+    cd /mnt/server
+    SPIGOT_JAR=$(find . -maxdepth 1 -name "spigot-*.jar" | sort -V | tail -1)
+    if [ -n "$SPIGOT_JAR" ]; then
+      mv "$SPIGOT_JAR" server.jar
     else
-      curl -fsSL "https://mohistmc.com/api/v2/projects/mohist/${MC_VERSION}/builds/${BUILD}/download" -o server.jar
+      CRAFT_JAR=$(find . -maxdepth 1 -name "craftbukkit-*.jar" | sort -V | tail -1)
+      if [ -n "$CRAFT_JAR" ]; then
+        mv "$CRAFT_JAR" server.jar
+      else
+        echo "[Vivox] ERROR: BuildTools did not produce a server jar." >&2
+        exit 1
+      fi
     fi
-    echo "[Vivox] Mohist ${MC_VERSION} installed."
-  }
-
-  # ── Arclight (Paper + Fabric hybrid) ─────────────────────────────────────────
-  install_arclight() {
-    echo "[Vivox] Fetching Arclight for MC ${MC_VERSION}..."
-    ARCLIGHT_TYPE="${ARCLIGHT_TYPE:-fabric}"
-    API_URL="https://api.github.com/repos/IzzelAliz/Arclight/releases"
-    JAR_URL=$(curl -fsSL "$API_URL?per_page=20" \
-      | python3 -c "
-import sys,json,re
-rels=json.load(sys.stdin)
-mc='${MC_VERSION}'
-typ='${ARCLIGHT_TYPE}'
-for r in rels:
-    for a in r.get('assets',[]):
-        n=a['name']
-        if re.search(rf'arclight-{re.escape(typ)}-{re.escape(mc)}', n, re.I):
-            print(a['browser_download_url']); exit(0)
-for r in rels:
-    for a in r.get('assets',[]):
-        if '${MC_VERSION}' in a['name'] and a['name'].endswith('.jar'):
-            print(a['browser_download_url']); exit(0)
-exit(1)
-")
-    if [ -z "$JAR_URL" ]; then
-      echo "[Vivox] ERROR: No Arclight release found for MC ${MC_VERSION}." >&2
-      exit 1
-    fi
-    curl -fsSL "$JAR_URL" -o server.jar
-    echo "[Vivox] Arclight (${ARCLIGHT_TYPE}) for MC ${MC_VERSION} installed."
+    rm -rf /tmp/buildtools
+    echo "[Vivox] Spigot ${MC_VERSION} installed."
   }
 
   # ── Dispatch ─────────────────────────────────────────────────────────────────
   case "$FRAMEWORK_LC" in
-    paper)    install_paper ;;
-    purpur)   install_purpur ;;
     vanilla)  install_vanilla ;;
+    purpur)   install_purpur ;;
     fabric)   install_fabric ;;
     quilt)    install_quilt ;;
     forge)    install_forge ;;
     neoforge) install_neoforge ;;
-    mohist)   install_mohist ;;
-    arclight) install_arclight ;;
-    *)        echo "[Vivox] Unknown framework '${FRAMEWORK}', defaulting to Paper."; install_paper ;;
+    spigot)   install_spigot ;;
+    *)        echo "[Vivox] Unknown framework '${FRAMEWORK}', defaulting to Purpur."; install_purpur ;;
   esac
 
   if [ ! -f /mnt/server/server.properties ]; then
@@ -246,10 +230,10 @@ configurable:
   - key: FRAMEWORK
     label: Server Framework
     env: FRAMEWORK
-    default: "Paper"
+    default: "Vanilla"
     field_type: select
-    options: "Paper, Purpur, Vanilla, Fabric, Quilt, Forge, NeoForge, Mohist, Arclight"
-    description: "Bukkit-based (Paper/Purpur) = plugins. Mod loaders (Fabric/Forge/NeoForge/Quilt) = mods. Hybrids (Mohist/Arclight) = both."
+    options: "Vanilla, Purpur, Fabric, Forge, NeoForge, Quilt, Spigot"
+    description: "Bukkit-based (Purpur/Spigot) support plugins. Mod loaders (Fabric/Forge/NeoForge/Quilt) support mods. Vanilla = pure Minecraft."
     required: true
 
   - key: MC_VERSION
@@ -257,7 +241,7 @@ configurable:
     env: MC_VERSION
     default: "1.21.4"
     field_type: text
-    description: "Minecraft version string, e.g. 1.21.4 or 1.20.1. Must be supported by your chosen framework."
+    description: "Minecraft version string, e.g. 1.21.4. Must be supported by your chosen framework."
     required: true
 
   - key: MEMORY
@@ -278,9 +262,9 @@ configurable:
   - key: FABRIC_LOADER_VERSION
     label: Fabric Loader Version
     env: FABRIC_LOADER_VERSION
-    default: "0.16.9"
+    default: "latest"
     field_type: text
-    description: "Fabric loader version. Check https://fabricmc.net/develop/ for the latest stable."
+    description: "Fabric loader version. 'latest' auto-selects the newest stable. Check https://fabricmc.net/develop/ to pin a version."
 
   - key: FORGE_VERSION
     label: Forge Version
@@ -299,17 +283,16 @@ configurable:
   - key: QUILT_LOADER_VERSION
     label: Quilt Loader Version
     env: QUILT_LOADER_VERSION
-    default: "0.27.1"
+    default: "latest"
     field_type: text
-    description: "Quilt loader version. Check https://quiltmc.org/en/usage/latest-versions/ for the latest."
+    description: "Quilt loader version. 'latest' auto-selects the newest stable. Check https://quiltmc.org/en/usage/latest-versions/ to pin a version."
 
-  - key: ARCLIGHT_TYPE
-    label: Arclight Variant
-    env: ARCLIGHT_TYPE
-    default: "fabric"
-    field_type: select
-    options: "fabric, forge"
-    description: "Arclight variant: fabric (Paper + Fabric, modern MC) or forge (Paper + Forge, older MC)."
+  - key: BUILD_NUMBER
+    label: Purpur Build Number
+    env: BUILD_NUMBER
+    default: "latest"
+    field_type: text
+    description: "Purpur build number. 'latest' always fetches the newest build for your MC version."
 
   - key: MOTD
     label: Server MOTD

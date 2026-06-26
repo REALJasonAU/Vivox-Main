@@ -34,20 +34,29 @@ env:
   VERSION: "public"
   AUTO_UPDATE: "1"
   VALIDATE: "1"
+  FRAMEWORK_UPDATE: "1"
+  CHAOS_EXT: "0"
+  DISCORD_EXT: "0"
+  RUSTEDIT_EXT: "0"
+  EGG_DEBUG: "0"
+  MONO_LOGGING: "0"
+  LOG_FILE: ""
 
 install_script: |
   #!/bin/bash
-  # Pterodactyl-style SteamCMD install (SturdyStubs AIO egg compatible).
+  # Pterodactyl-style SteamCMD install (SturdyStubs AIO 4.0 egg compatible).
   set -euo pipefail
   SRCDS_APPID=258550
-  DOWNLOAD_METHOD="${DOWNLOAD_METHOD:-SteamCMD}"
+  DOWNLOAD_METHOD="${DOWNLOAD_METHOD:-${download_method:-SteamCMD}}"
   METHOD_LC="$(echo "${DOWNLOAD_METHOD}" | tr '[:upper:]' '[:lower:]')"
-  FRAMEWORK="${FRAMEWORK:-public}"
-  case "$(echo "${FRAMEWORK}" | tr '[:upper:]' '[:lower:]')" in
-    *aux1*) BRANCH="aux01" ;;
-    *aux2*) BRANCH="aux02" ;;
-    *staging*) BRANCH="staging" ;;
-    *) BRANCH="public" ;;
+  # Use VERSION to select the Steam branch (public, staging, aux01, aux02, release)
+  VERSION="${VERSION:-public}"
+  case "$(echo "${VERSION}" | tr '[:upper:]' '[:lower:]')" in
+    *aux01*|*aux1*) BRANCH="aux01" ;;
+    *aux02*|*aux2*) BRANCH="aux02" ;;
+    *staging*)      BRANCH="staging" ;;
+    *release*)      BRANCH="release" ;;
+    *)              BRANCH="public" ;;
   esac
   STEAM_USER="${STEAM_USER:-anonymous}"
   STEAM_PASS="${STEAM_PASS:-}"
@@ -71,12 +80,18 @@ install_script: |
   curl -fsSL -o steamcmd.tar.gz https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
   tar -xzf steamcmd.tar.gz -C /mnt/server/steamcmd
   cd /mnt/server/steamcmd
+  chown -R root:root /mnt
   export HOME=/mnt/server
+  VALIDATE_FLAG=""
+  [ "${VALIDATE:-1}" = "1" ] && VALIDATE_FLAG="validate"
   if [ "${METHOD_LC}" = "depotdownloader" ] || [ "${METHOD_LC}" = "dd" ]; then
+    echo "Using DepotDownloader (branch: ${BRANCH})..."
     install_depotdownloader
     /mnt/server/DepotDownloader/DepotDownloader -app "${SRCDS_APPID}" -dir /mnt/server -branch "${BRANCH}" -validate
   else
-    ./steamcmd.sh +force_install_dir /mnt/server +login "${STEAM_USER}" "${STEAM_PASS}" "${STEAM_AUTH}" +app_update "${SRCDS_APPID}" validate +quit
+    echo "Using SteamCMD (branch: ${BRANCH})..."
+    ./steamcmd.sh +force_install_dir /mnt/server +login "${STEAM_USER}" "${STEAM_PASS}" "${STEAM_AUTH}" \
+      +app_update "${SRCDS_APPID}" -beta "${BRANCH}" ${VALIDATE_FLAG} +quit
   fi
   mkdir -p /mnt/server/.steam/sdk32 /mnt/server/.steam/sdk64
   cp -v linux32/steamclient.so ../.steam/sdk32/steamclient.so || true
@@ -98,7 +113,7 @@ startup_cmd: >-
   || printf %s "+server.levelurl \"${MAP_URL}\"" )
   $( [ -n "${APP_PUBLIC_IP}" ] && printf %s "+app.publicip \"${APP_PUBLIC_IP}\"" )
   $( [ -n "${SERVER_TAGS}" ] && printf %s "+server.tags \"${SERVER_TAGS}\"" )
-  $( d="logs/console.log"; mkdir -p "$(dirname "$d")" ) -logfile "logs/console.log" ${ADDITIONAL_ARGS}
+  $( d="${LOG_FILE:-logs/console.log}"; mkdir -p "$(dirname "$d")" ) -logfile "${LOG_FILE:-logs/console.log}" ${ADDITIONAL_ARGS}
 
 configurable:
   - key: hostname
@@ -166,6 +181,120 @@ configurable:
     env: GAMEMODE
     options: "vanilla, survival, softcore, hardcore"
     field_type: select
+  - key: version
+    label: Branch / Version
+    default: "public"
+    env: VERSION
+    options: "public, release, staging, aux01, aux02"
+    field_type: select
+    description: "Steam branch. Use 'public' for live servers. Staging/aux branches are for testing."
+  - key: download_method
+    label: Download method
+    default: "SteamCMD"
+    env: DOWNLOAD_METHOD
+    options: "SteamCMD, DepotDownloader"
+    field_type: select
+    description: "SteamCMD for most servers. DepotDownloader is an alternative if SteamCMD has issues."
+  - key: auto_update
+    label: Auto-update on start
+    default: "1"
+    env: AUTO_UPDATE
+    options: "1, 0"
+    field_type: select
+    description: "Automatically update server files on startup."
+  - key: validate
+    label: Validate files on update
+    default: "1"
+    env: VALIDATE
+    options: "1, 0"
+    field_type: select
+    description: "Validate server file integrity during updates."
+  - key: framework_update
+    label: Update framework on start
+    default: "1"
+    env: FRAMEWORK_UPDATE
+    options: "1, 0"
+    field_type: select
+    description: "Enable/disable Carbon or Oxide framework update on each startup."
+  - key: chaos_ext
+    label: ChaosCode extension
+    default: "0"
+    env: CHAOS_EXT
+    options: "0, 1"
+    field_type: select
+    description: "Install the ChaosCode extension (Carbon only)."
+  - key: discord_ext
+    label: Discord extension
+    default: "0"
+    env: DISCORD_EXT
+    options: "0, 1"
+    field_type: select
+    description: "Install the Discord Extension for Carbon/Oxide."
+  - key: rustedit_ext
+    label: RustEdit extension
+    default: "0"
+    env: RUSTEDIT_EXT
+    options: "0, 1"
+    field_type: select
+    description: "Install the RustEdit Extension for custom map support."
+  - key: log_file
+    label: Log file path
+    default: ""
+    env: LOG_FILE
+    field_type: text
+    description: "Override log file location. Leave blank for default (logs/console.log)."
+  - key: saveinterval
+    label: Save interval (seconds)
+    default: "600"
+    env: SAVEINTERVAL
+    field_type: number
+    description: "Auto-save interval in seconds. Default 600 (10 min)."
+  - key: server_identity
+    label: Server identity folder
+    default: "rust"
+    env: SERVER_IDENTITY
+    field_type: text
+    description: "Folder under server data that holds world/save files."
+  - key: server_url
+    label: Server website URL
+    default: ""
+    env: SERVER_URL
+    field_type: text
+  - key: server_img
+    label: Header image URL
+    default: ""
+    env: SERVER_IMG
+    field_type: text
+    description: "Banner image shown at the top of the server listing."
+  - key: server_logo
+    label: Logo image URL
+    default: ""
+    env: SERVER_LOGO
+    field_type: text
+    description: "Circular logo shown in the Rust+ companion app."
+  - key: server_tags
+    label: Server tags
+    default: "vanilla"
+    env: SERVER_TAGS
+    field_type: text
+    description: "Comma-separated browser tags. See https://wiki.facepunch.com/rust/server-browser-tags"
+  - key: app_port
+    label: Rust+ app port
+    default: "-1"
+    env: APP_PORT
+    field_type: number
+    description: "Companion app port. Use -1 to disable."
+  - key: app_public_ip
+    label: Rust+ public IP
+    default: ""
+    env: APP_PUBLIC_IP
+    field_type: text
+    description: "Public IP for Rust+ companion app. Leave blank unless you know what you're doing."
+  - key: additional_args
+    label: Additional launch args
+    default: ""
+    env: ADDITIONAL_ARGS
+    field_type: text
 
 resources:
   memory_mb: 8192

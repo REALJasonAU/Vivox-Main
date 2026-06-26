@@ -24,13 +24,15 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 
+	"github.com/nexus-control/apps/agent/internal/backup"
 	"github.com/nexus-control/apps/agent/internal/exec"
 	"github.com/nexus-control/apps/agent/internal/health"
 	"github.com/nexus-control/apps/agent/internal/metrics"
-	"github.com/nexus-control/apps/agent/internal/backup"
+	"github.com/nexus-control/apps/agent/internal/ufw"
 	gen "github.com/nexus-control/packages/proto/gen"
 )
 
@@ -161,6 +163,10 @@ func (m *Manager) StartService(ctx context.Context, t *gen.StartServiceTask) err
 				Target: dataMountPath,
 			},
 		},
+		// Security hardening: prevent privilege escalation and drop all Linux capabilities.
+		// Game servers only need network bind, which works fine with all caps dropped.
+		SecurityOpt: []string{"no-new-privileges"},
+		CapDrop:     strslice.StrSlice{"ALL"},
 	}
 	if runtime.CPUShares > 0 {
 		threads := runtime.CPUShares / 1024
@@ -187,6 +193,9 @@ func (m *Manager) StartService(ctx context.Context, t *gen.StartServiceTask) err
 		return fmt.Errorf("start container: %w", err)
 	}
 
+	// Open host firewall rules for the service's published ports.
+	ufw.Allow(ufw.ParseDockerBindings(t.GetPortBindings()))
+
 	m.track(serviceID, created.ID, t)
 	return nil
 }
@@ -203,7 +212,14 @@ func (m *Manager) StopService(ctx context.Context, t *gen.StopServiceTask) error
 	if timeout <= 0 {
 		timeout = 10
 	}
-	return m.removeService(ctx, serviceID, timeout)
+	// Collect port specs before removing the container so we can close firewall rules.
+	portSpecs := m.collectPortSpecs(ctx, serviceID)
+	if err := m.removeService(ctx, serviceID, timeout); err != nil {
+		return err
+	}
+	// Close host firewall rules for the removed service's ports.
+	ufw.Remove(portSpecs)
+	return nil
 }
 
 // UpdateConfig applies new environment variables. Docker cannot mutate env on a
@@ -410,6 +426,30 @@ func (m *Manager) findContainer(ctx context.Context, serviceID string) (id strin
 		return "", false, nil
 	}
 	return list[0].ID, true, nil
+}
+
+// collectPortSpecs inspects a running/stopped service container and returns the
+// host-side published ports as "port/proto" strings suitable for UFW rules.
+// Returns an empty slice if the container doesn't exist or inspect fails.
+func (m *Manager) collectPortSpecs(ctx context.Context, serviceID string) []string {
+	id, ok, err := m.findContainer(ctx, serviceID)
+	if err != nil || !ok {
+		return nil
+	}
+	inspected, err := m.cli.ContainerInspect(ctx, id)
+	if err != nil || inspected.HostConfig == nil {
+		return nil
+	}
+	var rules []string
+	for port, bindings := range inspected.HostConfig.PortBindings {
+		proto := port.Proto() // "tcp" or "udp"
+		for _, b := range bindings {
+			if b.HostPort != "" {
+				rules = append(rules, b.HostPort+"/"+proto)
+			}
+		}
+	}
+	return rules
 }
 
 // applyNetworking sets either host networking (sentinel) or explicit published

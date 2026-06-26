@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -13,6 +15,12 @@ import (
 	"github.com/nexus-control/apps/api/internal/service"
 	gen "github.com/nexus-control/packages/proto/gen"
 )
+
+// configSnapshot is the structure stored in backups.config_snapshot.
+type configSnapshot struct {
+	Environment map[string]string `json:"environment"`
+	StartupCmd  string            `json:"startup_cmd"`
+}
 
 var domainRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}$`)
 
@@ -128,10 +136,17 @@ func (a *api) createBackup(c *fiber.Ctx) error {
 			fmt.Sprintf("backup limit reached (%d/%d) — delete an old backup first", count, maxBackups),
 		)
 	}
+	// Snapshot environment + startup command at backup time.
+	snap := configSnapshot{
+		Environment: svc.Config.Environment,
+		StartupCmd:  svc.Config.StartupCmd,
+	}
+	snapJSON, _ := json.Marshal(snap)
 	backup, err := a.q.CreateBackup(c.UserContext(), db.CreateBackupParams{
-		ServiceID: svc.ID,
-		NodeID:    svc.NodeID,
-		Status:    db.BackupStatusPending,
+		ServiceID:      svc.ID,
+		NodeID:         svc.NodeID,
+		Status:         db.BackupStatusPending,
+		ConfigSnapshot: pgtype.Text{String: string(snapJSON), Valid: true},
 	})
 	if err != nil {
 		return err
@@ -195,6 +210,101 @@ func (a *api) dismissBackup(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// downloadBackup streams a backup archive to the client by reading it from the
+// agent via a special virtual FileReadTask path (/__backup_download__/{id}).
+func (a *api) downloadBackup(c *fiber.Ctx) error {
+	svc, err := a.loadOwned(c)
+	if err != nil {
+		return err
+	}
+	backupIDStr := c.Params("backupId")
+	backupID, err := service.ParseUUID(backupIDStr)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid backup id")
+	}
+	// Verify the backup exists and belongs to this service.
+	_, err = a.q.GetBackup(c.UserContext(), backupID, svc.ID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "backup not found")
+	}
+
+	// Read the backup archive from the agent using the special virtual path.
+	result, err := a.dispatchFileCommandWithTimeout(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_ReadFile{
+			ReadFile: &gen.FileReadTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      "/__backup_download__/" + backupIDStr,
+			},
+		},
+	}, 5*60*time.Second) // 5 minute timeout for large backups
+	if err != nil {
+		return err
+	}
+	if result.Error != "" {
+		return fiber.NewError(fiber.StatusInternalServerError, result.Error)
+	}
+
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="backup-%s.tar.gz"`, backupIDStr[:8]))
+	c.Set("Content-Type", "application/gzip")
+	return c.Send(result.Content)
+}
+
+// restoreBackup triggers a backup restore on the agent by sending a special
+// virtual FileWriteTask path (/__backup_restore__/{id}).
+func (a *api) restoreBackup(c *fiber.Ctx) error {
+	svc, err := a.loadOwned(c)
+	if err != nil {
+		return err
+	}
+	backupIDStr := c.Params("backupId")
+	backupID, err := service.ParseUUID(backupIDStr)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid backup id")
+	}
+	// Verify the backup exists, belongs to this service, and was successful.
+	backup, err := a.q.GetBackup(c.UserContext(), backupID, svc.ID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "backup not found")
+	}
+	if string(backup.Status) != "success" {
+		return fiber.NewError(fiber.StatusConflict, "only completed backups can be restored")
+	}
+
+	_, err = a.dispatchFileCommandWithTimeout(svc, &gen.DownstreamEnvelope{
+		Action: &gen.DownstreamEnvelope_WriteFile{
+			WriteFile: &gen.FileWriteTask{
+				ServiceId: service.UUIDString(svc.ID),
+				Path:      "/__backup_restore__/" + backupIDStr,
+				Content:   []byte{},
+			},
+		},
+	}, 10*60*time.Second) // 10 minute timeout for large restores
+	if err != nil {
+		return err
+	}
+
+	// Restore config snapshot (environment + startup command) if present.
+	if backup.ConfigSnapshot.Valid && backup.ConfigSnapshot.String != "" {
+		var snap configSnapshot
+		if jsonErr := json.Unmarshal([]byte(backup.ConfigSnapshot.String), &snap); jsonErr == nil {
+			cfg := svc.Config
+			if snap.Environment != nil {
+				cfg.Environment = snap.Environment
+			}
+			if snap.StartupCmd != "" {
+				cfg.StartupCmd = snap.StartupCmd
+			}
+			_, _ = a.q.UpdateServiceConfig(c.UserContext(), db.UpdateServiceConfigParams{
+				ID:             svc.ID,
+				ResourceLimits: svc.ResourceLimits,
+				Config:         cfg,
+			})
+		}
+	}
+
+	return c.JSON(fiber.Map{"status": "restored", "backup_id": backupIDStr})
+}
+
 func backupView(b db.Backup) fiber.Map {
 	var size *int64
 	if b.SizeBytes.Valid {
@@ -210,6 +320,7 @@ func backupView(b db.Backup) fiber.Map {
 		"error":        textPtr(b.Error),
 		"created_at":   formatTimestamptz(b.CreatedAt),
 		"completed_at": formatTimestamptz(b.CompletedAt),
+		"has_config":   b.ConfigSnapshot.Valid && b.ConfigSnapshot.String != "",
 	}
 }
 

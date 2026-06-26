@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { motion } from "framer-motion";
 import { Server, Plus, ShieldAlert } from "lucide-react";
 import { nodesApi } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
@@ -11,6 +12,16 @@ import type { Node } from "@/lib/types";
 import { EmptyState, ErrorBanner, Skeleton } from "@/components/ui/states";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.04 } },
+};
+
+const rowVariants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
+};
 
 export default function AdminNodesPage() {
   const { data: session } = useSession();
@@ -101,11 +112,16 @@ export default function AdminNodesPage() {
                 <th className="hidden px-4 py-3 font-medium lg:table-cell">Last seen</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <motion.tbody
+              className="divide-y divide-border"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+            >
               {displayNodes.map((node) => (
                 <NodeRow key={node.id} node={node} />
               ))}
-            </tbody>
+            </motion.tbody>
           </table>
         </div>
       )}
@@ -145,7 +161,7 @@ function NodeRow({ node }: { node: Node }) {
     node.capacity.ram_mb > 0 ? ((node.memory_used_mb ?? 0) / node.capacity.ram_mb) * 100 : 0;
 
   return (
-    <tr className="transition-colors duration-200 hover:bg-surface-raised/50">
+    <motion.tr variants={rowVariants} className="transition-colors duration-200 hover:bg-surface-raised/50">
       <td className="px-4 py-3 font-medium text-foreground">
         <Link href={`/admin/nodes/${node.id}`} className="hover:text-vivox-400">
           {node.name}
@@ -182,7 +198,7 @@ function NodeRow({ node }: { node: Node }) {
       <td className="hidden px-4 py-3 text-muted lg:table-cell">
         {node.last_seen_at ? formatRelativeTime(node.last_seen_at) : "never"}
       </td>
-    </tr>
+    </motion.tr>
   );
 }
 

@@ -133,12 +133,14 @@ export interface PortDisplay {
   isMain: boolean;
 }
 
-/** Host-facing bind string: ip:hostPort/proto (e.g. 0.0.0.0:28015/udp). */
+/** Human-readable port: just the port number, or ip:port for a specific bind IP. */
 export function formatHostPortDisplay(b: PortBinding): string {
   const ip = (b.hostIp || "0.0.0.0").trim();
   const host = b.host > 0 ? b.host : b.container;
-  const proto = (b.proto || "tcp").toLowerCase();
-  return `${ip}:${host}/${proto}`;
+  if (!ip || ip === "0.0.0.0" || ip === "::") {
+    return String(host);
+  }
+  return `${ip}:${host}`;
 }
 
 /** Human-readable port list with main vs additional allocations. */

@@ -5,15 +5,13 @@ const RUST_ONLY_FRAMEWORKS = new Set(["oxide", "carbon", "carbon-minimal"]);
 
 /** Minecraft server software from the minecraft template. */
 const MINECRAFT_FRAMEWORKS = new Set([
-  "paper",
   "purpur",
   "vanilla",
   "fabric",
   "forge",
   "neoforge",
   "quilt",
-  "mohist",
-  "arclight",
+  "spigot",
 ]);
 
 export function isRustFramework(fw: string): boolean {
@@ -101,15 +99,16 @@ export function showRustPluginTab(service: Service): boolean {
 
 export function showMcPluginTab(service: Service): boolean {
   const fw = service.config?.environment?.FRAMEWORK ?? "";
-  return isMinecraftGame(service) && fw !== "Vanilla";
+  return isMinecraftGame(service) && fw.toLowerCase() !== "vanilla";
 }
 
 export function pluginTabLabel(service: Service): string | null {
   if (!showRustPluginTab(service) && !showMcPluginTab(service)) return null;
   const fw = service.config?.environment?.FRAMEWORK ?? "";
+  const fwLower = fw.toLowerCase();
   return isRustGame(service)
     ? "Plugins"
-    : ["Fabric", "Forge", "NeoForge", "Quilt"].includes(fw)
+    : ["fabric", "forge", "neoforge", "quilt"].includes(fwLower)
       ? "Mods"
       : "Plugins";
 }
